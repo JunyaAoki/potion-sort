@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Potion Sort",
+    "slug": "potion-sort",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#141A38"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.junyaaoki.potionsort"
+    },
+    "android": {
+      "package": "com.junyaaoki.potionsort",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#141A38"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-5328629267151320~7747794975"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b37ef199-d54a-48f7-85d3-d73486e490f7"
+      }
+    }
+  }
+}
