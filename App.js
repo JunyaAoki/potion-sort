@@ -7,6 +7,13 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { initSounds, playSound } from './sounds';
+import { loadRewarded, showRewarded } from './ads';
+import * as StoreReview from 'expo-store-review';
+import {
+  requestNotificationPermission,
+  scheduleHeartFullNotification,
+  scheduleDailyReminder,
+} from './notifications';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -48,9 +55,47 @@ function getStageConfig(stageNum) {
   return { ...TIERS[idx], stageColor: band.color, bandName: band.name };
 }
 
-const INITIAL_ITEMS = { undo: 5, hint: 5 };
-const ITEMS_KEY     = 'ballsort_items_v1';
-const PROGRESS_KEY  = 'ballsort_progress_v2';
+const INITIAL_ITEMS   = { undo: 5, hint: 5 };
+const ITEMS_KEY       = 'ballsort_items_v1';
+const PROGRESS_KEY    = 'ballsort_progress_v2';
+const TUTORIAL_KEY    = 'ballsort_tutorial_v1';
+const HEARTS_KEY      = 'ballsort_hearts_v1';
+const MAX_HEARTS      = 5;
+const HEART_REGEN_MS  = 30 * 60 * 1000; // 30分
+const COINS_KEY       = 'ballsort_coins_v1';
+const COIN_PER_STAR   = [0, 15, 30, 50]; // index = stars
+const DAILY_KEY       = 'ballsort_daily_v1';
+const REVIEW_KEY      = 'ballsort_review_v1';
+const REVIEW_STAGE    = 10;
+const CHALLENGE_KEY   = 'ballsort_challenge_v1';
+const ACHIEVE_KEY     = 'ballsort_achieve_v1';
+
+// ── Achievements ───────────────────────────────────────────
+const ACHIEVEMENTS = [
+  { id: 'first_clear',  emoji: '🎉', title: '初クリア',        desc: '初めてステージをクリア' },
+  { id: 'clear_5',      emoji: '🌱', title: '5ステージ制覇',   desc: '5ステージをクリア' },
+  { id: 'clear_10',     emoji: '🏅', title: '10ステージ制覇',  desc: '10ステージをクリア' },
+  { id: 'clear_30',     emoji: '🏆', title: '30ステージ制覇',  desc: '30ステージをクリア' },
+  { id: 'clear_50',     emoji: '👑', title: '全ステージ制覇',  desc: '全50ステージをクリア' },
+  { id: 'perfect',      emoji: '⭐', title: '完璧攻略',        desc: '3つ星でクリア' },
+  { id: 'daily_7',      emoji: '🔥', title: '7日連続ログイン', desc: '7日間連続でログイン' },
+  { id: 'challenge',    emoji: '🧪', title: 'チャレンジャー',  desc: 'デイリーチャレンジをクリア' },
+];
+
+function getDailyChallengeConfig() {
+  const today = new Date().toISOString().slice(0, 10);
+  const seed  = today.split('-').reduce((acc, n) => acc * 31 + parseInt(n), 1);
+  return { colors: 6, cap: 4, empty: 2, seed, dateStr: today };
+}
+const DAILY_REWARDS   = [
+  { day: 1, coins: 20,  hearts: 0 },
+  { day: 2, coins: 30,  hearts: 0 },
+  { day: 3, coins: 40,  hearts: 1 },
+  { day: 4, coins: 50,  hearts: 0 },
+  { day: 5, coins: 60,  hearts: 1 },
+  { day: 6, coins: 80,  hearts: 0 },
+  { day: 7, coins: 100, hearts: 3 },
+];
 
 // ── Seeded PRNG (mulberry32) ───────────────────────────────
 function seededRand(seed) {
@@ -291,6 +336,187 @@ function Tube({ balls, cap, selected, tubeW, tubeH, stageColor,
   );
 }
 
+// ── Tutorial Overlay ───────────────────────────────────────
+const TUTORIAL_STEPS = [
+  { emoji: '👆', title: 'チューブをタップ', desc: '液体の入ったチューブをタップして選択します。光っているチューブが選択中です。' },
+  { emoji: '➡️', title: '移動先をタップ',  desc: '移動先のチューブをタップします。\n同じ色か、空のチューブに移動できます。' },
+  { emoji: '🎯', title: 'ゴール！',         desc: '全てのチューブを\n同じ色の液体で揃えるとクリアです！' },
+];
+
+function TutorialOverlay({ step, onNext, onSkip }) {
+  const cur   = TUTORIAL_STEPS[step - 1];
+  const scale = useRef(new Animated.Value(0.85)).current;
+  useEffect(() => {
+    scale.setValue(0.85);
+    Animated.spring(scale, { toValue: 1, friction: 6, useNativeDriver: true }).start();
+  }, [step]);
+  return (
+    <View style={[s.overlay, { backgroundColor: 'rgba(4,2,14,0.80)' }]}>
+      <Animated.View style={[s.winCard, { transform: [{ scale }] }]}>
+        <Text style={{ fontSize: 52 }}>{cur.emoji}</Text>
+        <Text style={[s.winTitle, { fontSize: 22 }]}>{cur.title}</Text>
+        <Text style={{ fontSize: 15, color: GREY, textAlign: 'center', lineHeight: 22 }}>
+          {cur.desc}
+        </Text>
+        <Text style={{ fontSize: 12, color: GREY, marginTop: -4 }}>{step} / {TUTORIAL_STEPS.length}</Text>
+        <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#2F7BF0' }]} onPress={onNext}>
+          <Text style={s.nextBtnTxt}>
+            {step < TUTORIAL_STEPS.length ? '次へ →' : 'さあ始めよう！'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onSkip} style={{ paddingVertical: 6 }}>
+          <Text style={{ fontSize: 13, color: GREY }}>スキップ</Text>
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
+  );
+}
+
+// ── Purchase Modal ─────────────────────────────────────────
+// ── Daily Bonus Modal ──────────────────────────────────────
+function DailyBonusModal({ streak, reward, onClaim }) {
+  const scale    = useRef(new Animated.Value(0.7)).current;
+  const coinAnim = useRef(new Animated.Value(0)).current;
+  const [displayCoins, setDisplayCoins] = useState(0);
+
+  useEffect(() => {
+    Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
+    const id = coinAnim.addListener(({ value }) => setDisplayCoins(Math.floor(value)));
+    Animated.timing(coinAnim, {
+      toValue: reward.coins, duration: 900, delay: 300,
+      easing: Easing.out(Easing.cubic), useNativeDriver: false,
+    }).start();
+    return () => coinAnim.removeListener(id);
+  }, []);
+
+  return (
+    <Modal transparent animationType="fade">
+      <View style={s.overlay}>
+        <Animated.View style={[s.winCard, { transform: [{ scale }], gap: 10 }]}>
+          <Text style={{ fontSize: 48 }}>🎁</Text>
+          <Text style={[s.winTitle, { fontSize: 22 }]}>デイリーボーナス！</Text>
+
+          {/* 7-day progress */}
+          <View style={{ flexDirection: 'row', gap: 6, marginVertical: 4 }}>
+            {DAILY_REWARDS.map((r, i) => {
+              const day      = i + 1;
+              const cleared  = day < streak;
+              const isToday  = day === streak;
+              return (
+                <View key={day} style={{
+                  flex: 1, alignItems: 'center', paddingVertical: 6, borderRadius: 10,
+                  backgroundColor: isToday
+                    ? 'rgba(245,197,24,0.25)'
+                    : cleared ? 'rgba(39,199,87,0.15)' : 'rgba(255,255,255,0.06)',
+                  borderWidth: 1.5,
+                  borderColor: isToday ? '#F5C518' : cleared ? '#27C757' : 'rgba(255,255,255,0.12)',
+                }}>
+                  <Text style={{ fontSize: cleared ? 14 : 10 }}>{cleared ? '✅' : `${day}日`}</Text>
+                  {!cleared && <Text style={{ fontSize: 9, color: '#F5C518', fontWeight: '700' }}>🪙{r.coins}</Text>}
+                </View>
+              );
+            })}
+          </View>
+
+          {/* Today's reward */}
+          <View style={{ alignItems: 'center', gap: 6 }}>
+            <Text style={{ fontSize: 13, color: GREY }}>{streak}日目のボーナス</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10,
+              backgroundColor: 'rgba(245,197,24,0.12)', paddingHorizontal: 24, paddingVertical: 12,
+              borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(245,197,24,0.4)' }}>
+              <Text style={{ fontSize: 26 }}>🪙</Text>
+              <Text style={{ fontSize: 30, fontWeight: '900', color: '#F5C518' }}>+{displayCoins}</Text>
+              {reward.hearts > 0 && (
+                <>
+                  <Text style={{ fontSize: 20, color: GREY }}>＋</Text>
+                  <Text style={{ fontSize: 22 }}>{'❤️'.repeat(reward.hearts)}</Text>
+                </>
+              )}
+            </View>
+          </View>
+
+          <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#F57C00' }]} onPress={onClaim}>
+            <Text style={s.nextBtnTxt}>✨ 受け取る！</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+// ── Review Modal ───────────────────────────────────────────
+// ── Achievement Toast ───────────────────────────────────────
+function AchievementToast({ achievement, onDone }) {
+  const translateY = useRef(new Animated.Value(-100)).current;
+  const opacity    = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(translateY, { toValue: 0,    duration: 400, easing: Easing.out(Easing.back(1.5)), useNativeDriver: true }),
+        Animated.timing(opacity,    { toValue: 1,    duration: 300, useNativeDriver: true }),
+      ]),
+      Animated.delay(2200),
+      Animated.parallel([
+        Animated.timing(translateY, { toValue: -100, duration: 300, useNativeDriver: true }),
+        Animated.timing(opacity,    { toValue: 0,    duration: 300, useNativeDriver: true }),
+      ]),
+    ]).start(onDone);
+  }, []);
+  return (
+    <Animated.View style={{
+      position: 'absolute', top: 60, left: 20, right: 20, zIndex: 9999,
+      transform: [{ translateY }], opacity,
+      backgroundColor: 'rgba(20,10,50,0.95)',
+      borderRadius: 16, paddingHorizontal: 18, paddingVertical: 14,
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      borderWidth: 1.5, borderColor: 'rgba(200,160,80,0.6)',
+      shadowColor: '#F5C518', shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.4, shadowRadius: 12, elevation: 12,
+    }}>
+      <Text style={{ fontSize: 32 }}>{achievement.emoji}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 10, color: 'rgba(200,160,80,0.8)', fontWeight: '700', letterSpacing: 2 }}>
+          実績解除！
+        </Text>
+        <Text style={{ fontSize: 15, fontWeight: '800', color: '#E8D8A0' }}>{achievement.title}</Text>
+        <Text style={{ fontSize: 11, color: 'rgba(200,180,255,0.65)' }}>{achievement.desc}</Text>
+      </View>
+    </Animated.View>
+  );
+}
+
+// ── Review Modal ───────────────────────────────────────────
+function ReviewModal({ onRate, onLater, onNo }) {
+  const scale = useRef(new Animated.Value(0.8)).current;
+  useEffect(() => {
+    Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
+  }, []);
+  return (
+    <Modal transparent animationType="fade">
+      <View style={s.overlay}>
+        <Animated.View style={[s.winCard, { transform: [{ scale }], gap: 12 }]}>
+          <Text style={{ fontSize: 52 }}>⭐</Text>
+          <Text style={[s.winTitle, { fontSize: 22, textAlign: 'center' }]}>
+            楽しんでいただけていますか？
+          </Text>
+          <Text style={{ fontSize: 14, color: GREY, textAlign: 'center', lineHeight: 20 }}>
+            レビューを書いていただけると{'\n'}開発の励みになります！
+          </Text>
+          <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#F5C518' }]} onPress={onRate}>
+            <Text style={[s.nextBtnTxt, { color: '#333' }]}>⭐ レビューを書く</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#2F7BF0' }]} onPress={onLater}>
+            <Text style={s.nextBtnTxt}>あとで</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onNo} style={{ paddingVertical: 4 }}>
+            <Text style={{ fontSize: 13, color: GREY }}>表示しない</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
 // ── Purchase Modal ─────────────────────────────────────────
 function PurchaseModal({ type, onClose, onWatchAd, onBuy }) {
   const label = type === 'undo' ? 'やり直し' : 'ヒント';
@@ -323,23 +549,107 @@ function PurchaseModal({ type, onClose, onWatchAd, onBuy }) {
 }
 
 // ── Win Overlay ────────────────────────────────────────────
-function WinOverlay({ moves, stage, stageColor, onNext, onReplay }) {
+const SPARKLE_EMOJIS = ['⭐','✨','💫','🌟','⚡','💛','🔆','🌠'];
+
+function WinOverlay({ moves, stage, stageColor, coinsEarned, onNext, onReplay }) {
   const cfg      = getStageConfig(stage);
   const optMoves = cfg.colors * 4;
   const stars    = moves <= optMoves ? 3 : moves <= optMoves * 1.7 ? 2 : 1;
   const scale    = useRef(new Animated.Value(0.5)).current;
+  const coinAnim = useRef(new Animated.Value(0)).current;
+  const [displayCoins, setDisplayCoins] = useState(0);
+  const starAnims = useRef([
+    new Animated.Value(0), new Animated.Value(0), new Animated.Value(0),
+  ]).current;
+  const particles = useRef(SPARKLE_EMOJIS.map(() => ({
+    x: new Animated.Value(0), y: new Animated.Value(0),
+    op: new Animated.Value(0), sc: new Animated.Value(0),
+  }))).current;
+
   useEffect(() => {
+    // Card in
     Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
+
+    // Stars pop in one by one
+    starAnims.forEach((a, i) => {
+      Animated.sequence([
+        Animated.delay(300 + i * 150),
+        Animated.spring(a, { toValue: 1, friction: 4, tension: 120, useNativeDriver: true }),
+      ]).start();
+    });
+
+    // Coin count up
+    const id = coinAnim.addListener(({ value }) => setDisplayCoins(Math.floor(value)));
+    Animated.timing(coinAnim, {
+      toValue: coinsEarned, duration: 1000, delay: 600,
+      easing: Easing.out(Easing.cubic), useNativeDriver: false,
+    }).start();
+
+    // Sparkle particles
+    particles.forEach((p, i) => {
+      const angle = (i / particles.length) * Math.PI * 2;
+      const dist  = 90 + (i % 3) * 20;
+      Animated.sequence([
+        Animated.delay(180 + i * 55),
+        Animated.parallel([
+          Animated.timing(p.x,  { toValue: Math.cos(angle) * dist, duration: 650, useNativeDriver: true }),
+          Animated.timing(p.y,  { toValue: Math.sin(angle) * dist - 30, duration: 650, useNativeDriver: true }),
+          Animated.timing(p.sc, { toValue: 1, duration: 200, useNativeDriver: true }),
+          Animated.sequence([
+            Animated.timing(p.op, { toValue: 1, duration: 100, useNativeDriver: true }),
+            Animated.timing(p.op, { toValue: 0, duration: 550, delay: 100, useNativeDriver: true }),
+          ]),
+        ]),
+      ]).start();
+    });
+
+    return () => coinAnim.removeListener(id);
   }, []);
+
   return (
     <View style={s.overlay}>
+      {/* Sparkle particles */}
+      <View style={{ position: 'absolute', top: '38%', left: '50%' }}>
+        {particles.map((p, i) => (
+          <Animated.View key={i} style={{
+            position: 'absolute',
+            transform: [{ translateX: p.x }, { translateY: p.y }, { scale: p.sc }],
+            opacity: p.op,
+          }}>
+            <Text style={{ fontSize: 18 }}>{SPARKLE_EMOJIS[i]}</Text>
+          </Animated.View>
+        ))}
+      </View>
+
       <Animated.View style={[s.winCard, { transform: [{ scale }] }]}>
         <Text style={s.winEmoji}>🎉</Text>
         <Text style={s.winTitle}>クリア！</Text>
-        <Text style={{ fontSize: 38, color: '#F5C518', letterSpacing: 4 }}>
-          {'★'.repeat(stars)}<Text style={{ color: '#DDD' }}>{'★'.repeat(3 - stars)}</Text>
-        </Text>
-        <Text style={{ fontSize: 15, color: GREY }}>{moves} 手でクリア</Text>
+
+        {/* Stars animate in */}
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          {starAnims.map((a, i) => (
+            <Animated.Text key={i} style={{
+              fontSize: 38,
+              color: i < stars ? '#F5C518' : '#DDD',
+              transform: [{ scale: a }],
+            }}>★</Animated.Text>
+          ))}
+        </View>
+
+        {/* Coin reward */}
+        <View style={{
+          flexDirection: 'row', alignItems: 'center', gap: 10,
+          backgroundColor: 'rgba(245,197,24,0.12)',
+          paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24,
+          borderWidth: 1.5, borderColor: 'rgba(245,197,24,0.45)',
+          marginVertical: 4,
+        }}>
+          <Text style={{ fontSize: 28 }}>🪙</Text>
+          <Text style={{ fontSize: 32, fontWeight: '900', color: '#F5C518' }}>+{displayCoins}</Text>
+        </View>
+
+        <Text style={{ fontSize: 14, color: GREY }}>{moves} 手でクリア</Text>
+
         <TouchableOpacity style={[s.nextBtn, { backgroundColor: stageColor }]} onPress={onNext}>
           <Text style={s.nextBtnTxt}>次のステージ →</Text>
         </TouchableOpacity>
@@ -352,16 +662,30 @@ function WinOverlay({ moves, stage, stageColor, onNext, onReplay }) {
 }
 
 // ── Game Screen ────────────────────────────────────────────
-function GameScreen({ stage, items, onBack, onNext, onStageComplete, onUseItem, onBuyItem }) {
-  const cfg = getStageConfig(stage);
+function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem }) {
+  const cfg = challengeOverride
+    ? { colors: challengeOverride.colors, cap: challengeOverride.cap, empty: challengeOverride.empty, stageColor: '#8B30E8', bandName: 'DAILY' }
+    : getStageConfig(stage);
   const { colors, cap, empty, stageColor, bandName } = cfg;
+  const levelSeed = challengeOverride?.seed ?? stage;
 
-  const [tubes, setTubes]           = useState(() => makeLevel(colors, cap, empty, stage));
+  const [tubes, setTubes]           = useState(() => makeLevel(colors, cap, empty, levelSeed));
   const [selected, setSelected]     = useState(null);
   const [moves, setMoves]           = useState(0);
   const [won, setWon]               = useState(false);
   const [history, setHistory]       = useState([]);
   const [purchaseType, setPurchaseType] = useState(null);
+  const [tutorialStep, setTutorialStep] = useState(isFirstPlay ? 1 : 0);
+  const [coinsEarned, setCoinsEarned]   = useState(0);
+
+  function advanceTutorial() {
+    if (tutorialStep < TUTORIAL_STEPS.length) {
+      setTutorialStep(s => s + 1);
+    } else {
+      setTutorialStep(0);
+      onTutorialDone?.();
+    }
+  }
 
   const N     = tubes.length;
   const cols  = N <= 6 ? N : Math.ceil(N / 2);
@@ -478,8 +802,13 @@ function GameScreen({ stage, items, onBack, onNext, onStageComplete, onUseItem, 
 
       if (checkWin(nt)) {
         completedRef.current = 0;
+        const totalMoves = moves + 1;
+        const optMoves   = colors * 4;
+        const starsWon   = totalMoves <= optMoves ? 3 : totalMoves <= optMoves * 1.7 ? 2 : 1;
+        const coins      = COIN_PER_STAR[starsWon] * (isChallenge ? 2 : 1);
+        setCoinsEarned(coins);
         setWon(true);
-        onStageComplete?.(stage);
+        onStageComplete?.(stage, coins, starsWon, isChallenge);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         playSound('win');
       } else if (justCompleted) {
@@ -659,7 +988,7 @@ function GameScreen({ stage, items, onBack, onNext, onStageComplete, onUseItem, 
     setPourInfo(null);
     setStream(null);
     streamOpacity.setValue(0);
-    setTubes(makeLevel(colors, cap, empty, stage));
+    setTubes(makeLevel(colors, cap, empty, levelSeed));
     setSelected(null);
     setMoves(0);
     setWon(false);
@@ -687,7 +1016,9 @@ function GameScreen({ stage, items, onBack, onNext, onStageComplete, onUseItem, 
           <Text style={[s.iconTxt, { color: '#E8D8A0' }]}>←</Text>
         </TouchableOpacity>
         <View style={{ alignItems: 'center' }}>
-          <Text style={[s.headerTitle, { color: '#E8D8A0' }]}>ステージ {stage}</Text>
+          <Text style={[s.headerTitle, { color: '#E8D8A0' }]}>
+          {isChallenge ? 'DAILY CHALLENGE' : `ステージ ${stage}`}
+        </Text>
           <Text style={{ fontSize: 11, color: stageColor, fontWeight: '700', letterSpacing: 1 }}>
             {bandName}
           </Text>
@@ -772,9 +1103,18 @@ function GameScreen({ stage, items, onBack, onNext, onStageComplete, onUseItem, 
         ))}
       </View>
 
+      {tutorialStep > 0 && (
+        <TutorialOverlay
+          step={tutorialStep}
+          onNext={advanceTutorial}
+          onSkip={() => { setTutorialStep(0); onTutorialDone?.(); }}
+        />
+      )}
+
       {won && (
         <WinOverlay
           moves={moves} stage={stage} stageColor={stageColor}
+          coinsEarned={coinsEarned}
           onNext={onNext} onReplay={restart}
         />
       )}
@@ -855,68 +1195,235 @@ function GameScreen({ stage, items, onBack, onNext, onStageComplete, onUseItem, 
 }
 
 // ── Stage Select Screen ────────────────────────────────────
-function StageSelect({ clearedStages, onPlay }) {
-  const nextStage = clearedStages.size > 0 ? Math.max(...clearedStages) + 1 : 1;
-  const cfg       = getStageConfig(nextStage);
-  const scale     = useRef(new Animated.Value(1)).current;
+const TOTAL_STAGES = 50;
 
-  function pulse() {
+const HEART_COIN_COST  = 30;   // 1 heart
+const REFILL_COIN_COST = 100;  // full refill
+
+function StageSelect({ clearedStages, hearts, coins, challengeDone, onPlay, onPlayChallenge, onAddHearts, onSpendCoins }) {
+  const nextStage  = clearedStages.size > 0 ? Math.max(...clearedStages) + 1 : 1;
+  const cfg        = getStageConfig(nextStage);
+  const [timeLeft, setTimeLeft] = useState('');
+  const [shopOpen, setShopOpen] = useState(false);
+  const [noHearts, setNoHearts] = useState(false);
+  const btnScale   = useRef(new Animated.Value(1)).current;
+  const challenge  = getDailyChallengeConfig();
+
+  function buyHeart(count, coinCost) {
+    if (coins < coinCost) return;
+    onSpendCoins(coinCost);
+    onAddHearts(count);
+    setShopOpen(false);
+    setNoHearts(false);
+  }
+
+  useEffect(() => {
+    if (hearts.count >= MAX_HEARTS || !hearts.nextRegenAt) { setTimeLeft(''); return; }
+    const tick = () => {
+      const ms = hearts.nextRegenAt - Date.now();
+      if (ms <= 0) { setTimeLeft(''); return; }
+      const m = Math.floor(ms / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      setTimeLeft(`${m}:${String(s).padStart(2, '0')}`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [hearts]);
+
+  function handlePlay() {
+    if (hearts.count <= 0) { setNoHearts(true); return; }
     Animated.sequence([
-      Animated.timing(scale, { toValue: 0.94, duration: 100, useNativeDriver: true }),
-      Animated.spring(scale,  { toValue: 1,   friction: 4,   useNativeDriver: true }),
-    ]).start();
+      Animated.timing(btnScale, { toValue: 0.93, duration: 90, useNativeDriver: true }),
+      Animated.spring(btnScale,  { toValue: 1,   friction: 4,  useNativeDriver: true }),
+    ]).start(() => onPlay(nextStage));
   }
 
   return (
-    <ImageBackground
-      source={require('./assets/background.png')}
-      style={{ flex: 1 }}
-      resizeMode="cover"
-    >
-      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+    <ImageBackground source={require('./assets/background.png')} style={{ flex: 1 }} resizeMode="cover">
+      <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,2,14,0.38)' }} />
+      <SafeAreaView style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
 
-        {/* Title */}
-        <Text style={{
-          fontSize: 38, fontWeight: '900', letterSpacing: 4,
-          color: '#E8D08A',
-          textShadowColor: 'rgba(200,140,255,0.9)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 18,
+        {/* ── Top bar ── */}
+        <View style={{
+          flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+          paddingHorizontal: 16, paddingVertical: 10,
+          backgroundColor: 'rgba(10,6,30,0.72)',
+          borderBottomWidth: 1, borderBottomColor: 'rgba(180,140,55,0.3)',
         }}>
-          POTION SORT
-        </Text>
-        <Text style={{ fontSize: 12, color: 'rgba(200,180,255,0.7)', letterSpacing: 3, marginTop: 4 }}>
-          ✦ LIQUID PUZZLE ✦
-        </Text>
+          {/* Progress */}
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.6)', letterSpacing: 2, fontWeight: '700' }}>STAGE</Text>
+            <Text style={{ fontSize: 18, fontWeight: '900', color: '#E8D8A0' }}>
+              {nextStage} <Text style={{ fontSize: 12, color: 'rgba(200,180,255,0.5)' }}>/ {TOTAL_STAGES}</Text>
+            </Text>
+          </View>
 
-        {clearedStages.size > 0
-          ? <Text style={{ fontSize: 13, color: 'rgba(220,200,255,0.65)', marginTop: 10, marginBottom: 52 }}>
+          {/* Coins */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5,
+            backgroundColor: 'rgba(245,197,24,0.15)', paddingHorizontal: 12, paddingVertical: 6,
+            borderRadius: 16, borderWidth: 1, borderColor: 'rgba(245,197,24,0.35)' }}>
+            <Text style={{ fontSize: 16 }}>🪙</Text>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: '#F5C518' }}>{coins}</Text>
+          </View>
+
+          {/* Hearts */}
+          <View style={{ alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', gap: 3 }}>
+              {Array.from({ length: MAX_HEARTS }, (_, i) => (
+                <Text key={i} style={{ fontSize: 20 }}>{i < hearts.count ? '❤️' : '🖤'}</Text>
+              ))}
+            </View>
+            {timeLeft ? (
+              <Text style={{ fontSize: 11, color: '#F5C518', fontWeight: '700', marginTop: 2 }}>+❤️ {timeLeft}</Text>
+            ) : hearts.count >= MAX_HEARTS ? (
+              <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.5)', marginTop: 2 }}>MAX</Text>
+            ) : null}
+          </View>
+
+          {/* Shop button */}
+          <TouchableOpacity
+            onPress={() => setShopOpen(true)}
+            style={{
+              width: 40, height: 40, borderRadius: 20,
+              backgroundColor: 'rgba(255,255,255,0.10)',
+              alignItems: 'center', justifyContent: 'center',
+              borderWidth: 1, borderColor: 'rgba(200,160,80,0.4)',
+            }}>
+            <Text style={{ fontSize: 20 }}>🏪</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Center: title ── */}
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{
+            fontSize: 42, fontWeight: '900', letterSpacing: 4, color: '#E8D08A',
+            textShadowColor: 'rgba(200,100,255,0.9)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 22,
+          }}>
+            POTION
+          </Text>
+          <Text style={{
+            fontSize: 42, fontWeight: '900', letterSpacing: 4, color: '#E8D08A',
+            textShadowColor: 'rgba(200,100,255,0.9)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 22,
+            marginTop: -8,
+          }}>
+            SORT
+          </Text>
+          <Text style={{ fontSize: 12, color: 'rgba(200,180,255,0.65)', letterSpacing: 3, marginTop: 6 }}>
+            ✦ LIQUID PUZZLE ✦
+          </Text>
+          {clearedStages.size > 0 && (
+            <Text style={{ fontSize: 13, color: 'rgba(220,200,255,0.5)', marginTop: 14 }}>
               {clearedStages.size} ステージクリア済み
             </Text>
-          : <View style={{ height: 62 }} />
-        }
+          )}
+        </View>
 
-        <Animated.View style={{ transform: [{ scale }] }}>
+        {/* ── Play button ── */}
+        <View style={{ paddingHorizontal: 28, paddingBottom: 40 }}>
+          <Animated.View style={{ transform: [{ scale: btnScale }] }}>
+            <TouchableOpacity
+              onPress={handlePlay}
+              activeOpacity={1}
+              style={{
+                backgroundColor: cfg.stageColor,
+                paddingVertical: 22, borderRadius: 40, alignItems: 'center',
+                borderWidth: 3, borderColor: 'rgba(255,240,180,0.6)',
+                shadowColor: cfg.stageColor,
+                shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.7, shadowRadius: 20, elevation: 16,
+              }}
+            >
+              <Text style={{ color: '#fff', fontSize: 28, fontWeight: '900',
+                textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 }}>
+                ステージ {nextStage}
+              </Text>
+              <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '700', letterSpacing: 2, marginTop: 2 }}>
+                {cfg.bandName}  ·  {hearts.count > 0 ? `❤️ × ${hearts.count}` : 'ハートなし'}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* ── Daily Challenge button ── */}
           <TouchableOpacity
-            style={{
-              backgroundColor: 'rgba(30,15,70,0.82)',
-              paddingHorizontal: 48, paddingVertical: 20,
-              borderRadius: 32, alignItems: 'center', minWidth: 220,
-              borderWidth: 1.5, borderColor: 'rgba(200,160,80,0.7)',
-              shadowColor: cfg.stageColor, shadowOffset: { width: 0, height: 8 },
-              shadowOpacity: 0.6, shadowRadius: 20, elevation: 12,
+            onPress={() => {
+              if (hearts.count <= 0) { setNoHearts(true); return; }
+              onPlayChallenge(challenge);
             }}
-            onPress={() => { pulse(); onPlay(nextStage); }}
-            activeOpacity={1}
+            activeOpacity={0.82}
+            style={{
+              marginTop: 12,
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+              paddingVertical: 14, borderRadius: 28,
+              backgroundColor: challengeDone ? 'rgba(39,199,87,0.18)' : 'rgba(20,10,50,0.85)',
+              borderWidth: 1.5,
+              borderColor: challengeDone ? '#27C757' : 'rgba(245,197,24,0.55)',
+              shadowColor: challengeDone ? '#27C757' : '#F5C518',
+              shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
+            }}
           >
-            <Text style={{ color: 'rgba(220,190,120,0.85)', fontSize: 11, fontWeight: '700', letterSpacing: 3, marginBottom: 4 }}>
-              ── STAGE {nextStage} ──
-            </Text>
-            <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800',
-              textShadowColor: cfg.stageColor, textShadowOffset:{width:0,height:0}, textShadowRadius: 8 }}>
-              次のステージへ →
-            </Text>
+            <Text style={{ fontSize: 22 }}>{challengeDone ? '✅' : '🧪'}</Text>
+            <View>
+              <Text style={{ color: challengeDone ? '#27C757' : '#F5C518', fontSize: 13, fontWeight: '800', letterSpacing: 1 }}>
+                {challengeDone ? 'TODAY\'S CHALLENGE DONE!' : 'TODAY\'S CHALLENGE'}
+              </Text>
+              <Text style={{ color: 'rgba(200,180,255,0.7)', fontSize: 11, marginTop: 1 }}>
+                {challengeDone ? 'また明日！' : `クリアで🪙×2ボーナス！`}
+              </Text>
+            </View>
           </TouchableOpacity>
-        </Animated.View>
+        </View>
+
+        {/* ── Heart Shop modal ── */}
+        {(shopOpen || noHearts) && (
+          <Modal transparent animationType="fade">
+            <View style={s.overlay}>
+              <View style={[s.winCard, { gap: 10 }]}>
+                <Text style={{ fontSize: 44 }}>{noHearts ? '💔' : '🏪'}</Text>
+                <Text style={[s.winTitle, { fontSize: 22 }]}>
+                  {noHearts ? 'ハートがありません' : 'ハートショップ'}
+                </Text>
+
+                {/* Coin balance */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                  backgroundColor: 'rgba(245,197,24,0.12)', paddingHorizontal: 16, paddingVertical: 8,
+                  borderRadius: 16, borderWidth: 1, borderColor: 'rgba(245,197,24,0.35)' }}>
+                  <Text style={{ fontSize: 18 }}>🪙</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '900', color: '#F5C518' }}>{coins} コイン</Text>
+                </View>
+
+                {/* 1 heart for 30 coins */}
+                <TouchableOpacity
+                  style={[s.nextBtn, { backgroundColor: coins >= HEART_COIN_COST ? '#8B30E8' : '#AAA' }]}
+                  onPress={() => buyHeart(1, HEART_COIN_COST)}
+                  disabled={coins < HEART_COIN_COST}
+                >
+                  <Text style={s.nextBtnTxt}>🪙 {HEART_COIN_COST}コイン → ❤️ × 1</Text>
+                </TouchableOpacity>
+
+                {/* Full refill for 100 coins */}
+                <TouchableOpacity
+                  style={[s.nextBtn, { backgroundColor: coins >= REFILL_COIN_COST ? '#2F7BF0' : '#AAA' }]}
+                  onPress={() => buyHeart(MAX_HEARTS - hearts.count, REFILL_COIN_COST)}
+                  disabled={coins < REFILL_COIN_COST || hearts.count >= MAX_HEARTS}
+                >
+                  <Text style={s.nextBtnTxt}>🪙 {REFILL_COIN_COST}コイン → ❤️ 全回復</Text>
+                </TouchableOpacity>
+
+                {/* Watch ad */}
+                <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#E84343' }]}
+                  onPress={() => { setNoHearts(false); setShopOpen(false); showRewarded(() => onAddHearts(3)); }}>
+                  <Text style={s.nextBtnTxt}>📺 広告を見て❤️ × 3もらう</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY }]}
+                  onPress={() => { setNoHearts(false); setShopOpen(false); }}>
+                  <Text style={s.nextBtnTxt}>閉じる</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+        )}
       </SafeAreaView>
     </ImageBackground>
   );
@@ -928,17 +1435,132 @@ export default function App() {
   const [stage, setStage]                 = useState(1);
   const [clearedStages, setClearedStages] = useState(new Set());
   const [items, setItems]                 = useState(INITIAL_ITEMS);
+  const [tutorialDone, setTutorialDone]   = useState(true);
+  const [hearts, setHearts]               = useState({ count: MAX_HEARTS, nextRegenAt: null });
+  const [coins, setCoins]                 = useState(0);
+  const [dailyBonus, setDailyBonus]       = useState(null);
+  const [showReview, setShowReview]       = useState(false);
+  const [earnedAchieves, setEarnedAchieves] = useState(new Set());
+  const [toastQueue, setToastQueue]       = useState([]);
+  const [challengeDone, setChallengeDone] = useState(false);
 
   useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
     Promise.all([
       AsyncStorage.getItem(PROGRESS_KEY),
       AsyncStorage.getItem(ITEMS_KEY),
-    ]).then(([rawP, rawI]) => {
+      AsyncStorage.getItem(TUTORIAL_KEY),
+      AsyncStorage.getItem(HEARTS_KEY),
+      AsyncStorage.getItem(COINS_KEY),
+      AsyncStorage.getItem(DAILY_KEY),
+      AsyncStorage.getItem(REVIEW_KEY),
+      AsyncStorage.getItem(ACHIEVE_KEY),
+      AsyncStorage.getItem(CHALLENGE_KEY),
+    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh]) => {
       if (rawP) setClearedStages(new Set(JSON.parse(rawP)));
       if (rawI) setItems(JSON.parse(rawI));
+      if (!rawT) setTutorialDone(false);
+      if (rawC) setCoins(Number(rawC));
+      if (rawH) {
+        let { count, nextRegenAt } = JSON.parse(rawH);
+        const now = Date.now();
+        while (count < MAX_HEARTS && nextRegenAt && now >= nextRegenAt) {
+          count++;
+          nextRegenAt = count < MAX_HEARTS ? nextRegenAt + HEART_REGEN_MS : null;
+        }
+        setHearts({ count, nextRegenAt });
+        AsyncStorage.setItem(HEARTS_KEY, JSON.stringify({ count, nextRegenAt })).catch(() => {});
+      }
+      // デイリーボーナスチェック
+      const daily = rawD ? JSON.parse(rawD) : { lastDate: null, streak: 0 };
+      if (daily.lastDate !== today) {
+        const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+        const newStreak = daily.lastDate === yesterday ? Math.min(daily.streak + 1, 7) : 1;
+        const reward    = DAILY_REWARDS[newStreak - 1];
+        setDailyBonus({ streak: newStreak, reward });
+      }
+      // 実績ロード
+      if (rawA) setEarnedAchieves(new Set(JSON.parse(rawA)));
+      // チャレンジ完了チェック
+      if (rawCh) {
+        const ch = JSON.parse(rawCh);
+        if (ch.date === today) setChallengeDone(true);
+      }
     }).catch(() => {});
     initSounds();
+    loadRewarded();
+    requestNotificationPermission().then(granted => {
+      if (granted) scheduleDailyReminder();
+    });
   }, []);
+
+  function claimDailyBonus() {
+    if (!dailyBonus) return;
+    const today = new Date().toISOString().slice(0, 10);
+    AsyncStorage.setItem(DAILY_KEY, JSON.stringify({ lastDate: today, streak: dailyBonus.streak })).catch(() => {});
+    setCoins(prev => {
+      const next = prev + dailyBonus.reward.coins;
+      AsyncStorage.setItem(COINS_KEY, String(next)).catch(() => {});
+      return next;
+    });
+    if (dailyBonus.reward.hearts > 0) addHearts(dailyBonus.reward.hearts);
+    if (dailyBonus.streak >= 7) unlockAchievement('daily_7');
+    setDailyBonus(null);
+  }
+
+  function unlockAchievement(id) {
+    setEarnedAchieves(prev => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      AsyncStorage.setItem(ACHIEVE_KEY, JSON.stringify([...next])).catch(() => {});
+      const achievement = ACHIEVEMENTS.find(a => a.id === id);
+      if (achievement) setToastQueue(q => [...q, achievement]);
+      return next;
+    });
+  }
+
+  function checkAchievements(clearedSet, stars, isChallenge, streak) {
+    if (clearedSet.size >= 1)  unlockAchievement('first_clear');
+    if (clearedSet.size >= 5)  unlockAchievement('clear_5');
+    if (clearedSet.size >= 10) unlockAchievement('clear_10');
+    if (clearedSet.size >= 30) unlockAchievement('clear_30');
+    if (clearedSet.size >= 50) unlockAchievement('clear_50');
+    if (stars === 3)           unlockAchievement('perfect');
+    if (isChallenge)           unlockAchievement('challenge');
+    if (streak >= 7)           unlockAchievement('daily_7');
+  }
+
+  function saveHearts(h) {
+    AsyncStorage.setItem(HEARTS_KEY, JSON.stringify(h)).catch(() => {});
+  }
+
+  function consumeHeart() {
+    setHearts(prev => {
+      const count = Math.max(0, prev.count - 1);
+      const nextRegenAt = prev.nextRegenAt ?? (count < MAX_HEARTS ? Date.now() + HEART_REGEN_MS : null);
+      const next = { count, nextRegenAt };
+      saveHearts(next);
+      scheduleHeartFullNotification(nextRegenAt, count, MAX_HEARTS);
+      return next;
+    });
+  }
+
+  function addHearts(n) {
+    setHearts(prev => {
+      const count = Math.min(MAX_HEARTS, prev.count + n);
+      const nextRegenAt = count >= MAX_HEARTS ? null : prev.nextRegenAt ?? Date.now() + HEART_REGEN_MS;
+      const next = { count, nextRegenAt };
+      saveHearts(next);
+      scheduleHeartFullNotification(nextRegenAt, count, MAX_HEARTS);
+      return next;
+    });
+  }
+
+  function handleTutorialDone() {
+    setTutorialDone(true);
+    AsyncStorage.setItem(TUTORIAL_KEY, '1').catch(() => {});
+  }
 
   function saveProgress(set) {
     AsyncStorage.setItem(PROGRESS_KEY, JSON.stringify([...set])).catch(() => {});
@@ -948,12 +1570,31 @@ export default function App() {
     AsyncStorage.setItem(ITEMS_KEY, JSON.stringify(obj)).catch(() => {});
   }
 
-  function handleStageComplete(stageNum) {
+  function handleStageComplete(stageNum, coinsWon = 0, stars = 1, isChallenge = false) {
+    setCoins(prev => {
+      const next = prev + coinsWon;
+      AsyncStorage.setItem(COINS_KEY, String(next)).catch(() => {});
+      return next;
+    });
+    if (stageNum === REVIEW_STAGE) {
+      AsyncStorage.getItem(REVIEW_KEY).then(raw => {
+        if (!raw) setShowReview(true);
+      }).catch(() => {});
+    }
     setClearedStages(prev => {
-      if (prev.has(stageNum)) return prev;
       const next = new Set(prev);
       next.add(stageNum);
       saveProgress(next);
+      const daily = null; // streak は dailyBonus から取得
+      checkAchievements(next, stars, isChallenge, dailyBonus?.streak ?? 0);
+      return next;
+    });
+  }
+
+  function handleSpendCoins(amount) {
+    setCoins(prev => {
+      const next = Math.max(0, prev - amount);
+      AsyncStorage.setItem(COINS_KEY, String(next)).catch(() => {});
       return next;
     });
   }
@@ -968,26 +1609,49 @@ export default function App() {
 
   function handleBuyItem(type, count, method) {
     if (method === 'ad') {
-      // TODO: show rewarded ad then grant items
-      setItems(prev => {
-        const next = { ...prev, [type]: prev[type] + count };
-        saveItems(next);
-        return next;
+      showRewarded(() => {
+        setItems(prev => {
+          const next = { ...prev, [type]: prev[type] + count };
+          saveItems(next);
+          return next;
+        });
       });
-    } else {
-      // TODO: trigger IAP flow
     }
   }
 
+  const [challengeConfig, setChallengeConfig] = useState(null);
+
+  function handlePlayChallenge(config) {
+    consumeHeart();
+    setChallengeConfig(config);
+    setScreen('game');
+  }
+
+  function handleChallengeComplete(coinsWon, stars) {
+    const today = new Date().toISOString().slice(0, 10);
+    AsyncStorage.setItem(CHALLENGE_KEY, JSON.stringify({ date: today })).catch(() => {});
+    setChallengeDone(true);
+    handleStageComplete(0, coinsWon, stars, true);
+  }
+
   if (screen === 'game') {
+    const isChallenge = !!challengeConfig;
+    const gameStage   = isChallenge ? 0 : stage;
+    const gameCfg     = isChallenge ? challengeConfig : null;
     return (
       <GameScreen
-        key={stage}
-        stage={stage}
+        key={isChallenge ? 'challenge' : stage}
+        stage={gameStage}
+        challengeOverride={gameCfg}
         items={items}
-        onBack={() => setScreen('stages')}
-        onNext={() => setStage(s => s + 1)}
-        onStageComplete={handleStageComplete}
+        isFirstPlay={!tutorialDone && stage === 1}
+        isChallenge={isChallenge}
+        onTutorialDone={handleTutorialDone}
+        onBack={() => { setChallengeConfig(null); setScreen('stages'); }}
+        onNext={() => { setChallengeConfig(null); setScreen('stages'); }}
+        onStageComplete={isChallenge
+          ? (_, coins, stars) => handleChallengeComplete(coins, stars)
+          : handleStageComplete}
         onUseItem={handleUseItem}
         onBuyItem={handleBuyItem}
       />
@@ -995,10 +1659,45 @@ export default function App() {
   }
 
   return (
-    <StageSelect
-      clearedStages={clearedStages}
-      onPlay={stageNum => { setStage(stageNum); setScreen('game'); }}
-    />
+    <>
+      <StageSelect
+        clearedStages={clearedStages}
+        hearts={hearts}
+        coins={coins}
+        challengeDone={challengeDone}
+        onPlayChallenge={handlePlayChallenge}
+        onAddHearts={addHearts}
+        onSpendCoins={handleSpendCoins}
+        onPlay={stageNum => { consumeHeart(); setStage(stageNum); setScreen('game'); }}
+      />
+      {dailyBonus && (
+        <DailyBonusModal
+          streak={dailyBonus.streak}
+          reward={dailyBonus.reward}
+          onClaim={claimDailyBonus}
+        />
+      )}
+      {showReview && !dailyBonus && (
+        <ReviewModal
+          onRate={() => {
+            AsyncStorage.setItem(REVIEW_KEY, 'rated').catch(() => {});
+            setShowReview(false);
+            StoreReview.requestReview().catch(() => {});
+          }}
+          onLater={() => setShowReview(false)}
+          onNo={() => {
+            AsyncStorage.setItem(REVIEW_KEY, 'declined').catch(() => {});
+            setShowReview(false);
+          }}
+        />
+      )}
+      {toastQueue.length > 0 && (
+        <AchievementToast
+          achievement={toastQueue[0]}
+          onDone={() => setToastQueue(q => q.slice(1))}
+        />
+      )}
+    </>
   );
 }
 
