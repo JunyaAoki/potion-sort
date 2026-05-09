@@ -2,12 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   Dimensions, SafeAreaView, StatusBar, Animated, Easing, Modal,
-  ImageBackground,
+  ImageBackground, Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { initSounds, playSound, playBGM, pauseBGM, setBGMEnabled, isBGMEnabled } from './sounds';
-import { loadRewarded, showRewarded, loadInterstitial, showInterstitial } from './ads';
+import { loadRewarded, showRewarded, loadInterstitial, showInterstitial, BannerAd, BannerAdSize, AD_IDS } from './ads';
 import * as StoreReview from 'expo-store-review';
 import {
   requestNotificationPermission,
@@ -71,6 +71,17 @@ const CHALLENGE_KEY   = 'ballsort_challenge_v1';
 const ACHIEVE_KEY     = 'ballsort_achieve_v1';
 const WEEKLY_KEY      = 'ballsort_weekly_v1';
 const BGM_KEY         = 'ballsort_bgm_v1';
+const COLORBLIND_KEY  = 'ballsort_colorblind_v1';
+
+// 色覚サポート用シンボル（色ごとに固有の記号）
+const CB_SYMBOLS = ['✕','◆','★','▲','●','■','♥','○','▼','✦'];
+
+// コインパック定義（IAP準備済み）
+const COIN_PACKS = [
+  { id: 'coins_200',  coins: 200,  label: '¥120', emoji: '🪙' },
+  { id: 'coins_600',  coins: 600,  label: '¥370', emoji: '💰' },
+  { id: 'coins_1500', coins: 1500, label: '¥750', emoji: '💎', badge: 'お得！' },
+];
 
 // ── Weekly Missions ────────────────────────────────────────
 const WEEKLY_MISSIONS = [
@@ -157,7 +168,8 @@ function makeLevel(numColors, cap, numEmpty, seed) {
 // ── Tube ───────────────────────────────────────────────────
 function Tube({ balls, cap, selected, tubeW, tubeH, stageColor,
                 isDraining, drainCnt, drainAnim,
-                isFilling,  fillCnt,  fillColorIdx, fillAnim }) {
+                isFilling,  fillCnt,  fillColorIdx, fillAnim,
+                colorblindMode }) {
   const br   = tubeW / 2;
   const segH = tubeH / cap;
   const bw   = selected ? 2.5 : 1.5;
@@ -254,6 +266,14 @@ function Tube({ balls, cap, selected, tubeW, tubeH, stageColor,
                   width: '28%',
                   backgroundColor: 'rgba(0,0,0,0.22)',
                 }} />
+                {/* 色覚サポート記号 */}
+                {colorblindMode && (
+                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: Math.max(8, tubeW * 0.22), color: 'rgba(255,255,255,0.95)', fontWeight: '900' }}>
+                      {CB_SYMBOLS[colorIdx % CB_SYMBOLS.length]}
+                    </Text>
+                  </View>
+                )}
               </View>
             );
           })}
@@ -569,6 +589,110 @@ function PurchaseModal({ type, onClose, onWatchAd, onBuy }) {
   );
 }
 
+// ── Toggle Row (設定用) ────────────────────────────────────
+function ToggleRow({ label, desc, value, onToggle }) {
+  return (
+    <TouchableOpacity onPress={onToggle} activeOpacity={0.75} style={{
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      width: '100%', paddingVertical: 12, paddingHorizontal: 4,
+      borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)',
+    }}>
+      <View style={{ flex: 1, paddingRight: 12 }}>
+        <Text style={{ fontSize: 14, color: '#E8D8A0', fontWeight: '700' }}>{label}</Text>
+        {desc && <Text style={{ fontSize: 11, color: GREY, marginTop: 2 }}>{desc}</Text>}
+      </View>
+      <View style={{
+        width: 50, height: 28, borderRadius: 14,
+        backgroundColor: value ? '#27C757' : 'rgba(255,255,255,0.18)',
+        alignItems: value ? 'flex-end' : 'flex-start',
+        justifyContent: 'center', paddingHorizontal: 3,
+      }}>
+        <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff',
+          shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 2, elevation: 2 }} />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+// ── Settings Modal ─────────────────────────────────────────
+function SettingsModal({ bgmOn, colorblind, onToggleBGM, onToggleColorblind, onClose }) {
+  const scale = useRef(new Animated.Value(0.85)).current;
+  useEffect(() => {
+    Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
+  }, []);
+  return (
+    <Modal transparent animationType="fade">
+      <View style={s.overlay}>
+        <Animated.View style={[s.winCard, { transform: [{ scale }], gap: 4 }]}>
+          <Text style={{ fontSize: 36 }}>⚙️</Text>
+          <Text style={[s.winTitle, { fontSize: 20, marginBottom: 8 }]}>設定</Text>
+          <ToggleRow label="🎵 BGM" desc="バックグラウンド音楽" value={bgmOn} onToggle={onToggleBGM} />
+          <ToggleRow label="♿ 色覚サポート" desc="各チューブに識別記号を表示" value={colorblind} onToggle={onToggleColorblind} />
+          <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY, marginTop: 12 }]} onPress={onClose}>
+            <Text style={s.nextBtnTxt}>閉じる</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+// ── Achievement List Modal ─────────────────────────────────
+function AchievementListModal({ earnedAchieves, onClose }) {
+  const scale = useRef(new Animated.Value(0.85)).current;
+  useEffect(() => {
+    Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
+  }, []);
+  const earned = earnedAchieves.size;
+  return (
+    <Modal transparent animationType="fade">
+      <View style={s.overlay}>
+        <Animated.View style={[s.winCard, { transform: [{ scale }], gap: 8, paddingVertical: 24, maxHeight: SH * 0.82 }]}>
+          <Text style={{ fontSize: 36 }}>🏆</Text>
+          <Text style={[s.winTitle, { fontSize: 20 }]}>実績</Text>
+          <Text style={{ fontSize: 12, color: GREY, marginTop: -4 }}>{earned}/{ACHIEVEMENTS.length} 解除済み</Text>
+
+          {/* Progress bar */}
+          <View style={{ width: '100%', height: 6, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' }}>
+            <View style={{ width: `${(earned / ACHIEVEMENTS.length) * 100}%`, height: '100%', backgroundColor: '#F5C518', borderRadius: 3 }} />
+          </View>
+
+          <ScrollView style={{ width: '100%' }} showsVerticalScrollIndicator={false}>
+            {ACHIEVEMENTS.map(a => {
+              const isEarned = earnedAchieves.has(a.id);
+              return (
+                <View key={a.id} style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 12,
+                  paddingVertical: 10, paddingHorizontal: 10, marginBottom: 6, borderRadius: 14,
+                  backgroundColor: isEarned ? 'rgba(245,197,24,0.10)' : 'rgba(255,255,255,0.04)',
+                  borderWidth: 1.5,
+                  borderColor: isEarned ? 'rgba(245,197,24,0.45)' : 'rgba(255,255,255,0.08)',
+                  opacity: isEarned ? 1 : 0.5,
+                }}>
+                  <Text style={{ fontSize: 28 }}>{a.emoji}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: isEarned ? '#E8D8A0' : GREY }}>
+                      {isEarned ? a.title : '???'}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: GREY }}>
+                      {isEarned ? a.desc : '???'}
+                    </Text>
+                  </View>
+                  {isEarned && <Text style={{ fontSize: 18 }}>✅</Text>}
+                </View>
+              );
+            })}
+          </ScrollView>
+
+          <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY, marginTop: 4 }]} onPress={onClose}>
+            <Text style={s.nextBtnTxt}>閉じる</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
 // ── Weekly Missions Modal ──────────────────────────────────
 function WeeklyMissionsModal({ weekly, coins, onClaim, onClose }) {
   const scale = useRef(new Animated.Value(0.85)).current;
@@ -801,7 +925,7 @@ function DeadlockModal({ onRestart, onUndo, hasUndo }) {
 }
 
 // ── Game Screen ────────────────────────────────────────────
-function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem }) {
+function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride, colorblindMode, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem }) {
   const cfg = challengeOverride
     ? { colors: challengeOverride.colors, cap: challengeOverride.cap, empty: challengeOverride.empty, stageColor: '#8B30E8', bandName: 'DAILY' }
     : getStageConfig(stage);
@@ -1250,6 +1374,7 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
                     fillCnt={pourInfo?.drainCnt ?? 0}
                     fillColorIdx={pourInfo?.fillColor ?? 0}
                     fillAnim={fillAnim}
+                    colorblindMode={colorblindMode}
                   />
                 </TouchableOpacity>
               </Animated.View>
@@ -1363,7 +1488,7 @@ const TOTAL_STAGES = 50;
 const HEART_COIN_COST  = 30;   // 1 heart
 const REFILL_COIN_COST = 100;  // full refill
 
-function StageSelect({ clearedStages, hearts, coins, challengeDone, weekly, bgmOn, onPlay, onPlayChallenge, onAddHearts, onSpendCoins, onToggleBGM, onShowMissions }) {
+function StageSelect({ clearedStages, hearts, coins, challengeDone, weekly, onPlay, onPlayChallenge, onAddHearts, onSpendCoins, onShowMissions, onShowSettings, onShowAchievements }) {
   const nextStage  = clearedStages.size > 0 ? Math.max(...clearedStages) + 1 : 1;
   const cfg        = getStageConfig(nextStage);
   const [timeLeft, setTimeLeft] = useState('');
@@ -1445,16 +1570,28 @@ function StageSelect({ clearedStages, hearts, coins, challengeDone, weekly, bgmO
             ) : null}
           </View>
 
-          {/* BGM toggle */}
+          {/* Achievements button */}
           <TouchableOpacity
-            onPress={onToggleBGM}
+            onPress={onShowAchievements}
             style={{
               width: 40, height: 40, borderRadius: 20,
               backgroundColor: 'rgba(255,255,255,0.10)',
               alignItems: 'center', justifyContent: 'center',
               borderWidth: 1, borderColor: 'rgba(200,160,80,0.4)',
             }}>
-            <Text style={{ fontSize: 18 }}>{bgmOn ? '🎵' : '🔇'}</Text>
+            <Text style={{ fontSize: 18 }}>🏆</Text>
+          </TouchableOpacity>
+
+          {/* Settings button */}
+          <TouchableOpacity
+            onPress={onShowSettings}
+            style={{
+              width: 40, height: 40, borderRadius: 20,
+              backgroundColor: 'rgba(255,255,255,0.10)',
+              alignItems: 'center', justifyContent: 'center',
+              borderWidth: 1, borderColor: 'rgba(200,160,80,0.4)',
+            }}>
+            <Text style={{ fontSize: 18 }}>⚙️</Text>
           </TouchableOpacity>
 
           {/* Shop button */}
@@ -1581,6 +1718,15 @@ function StageSelect({ clearedStages, hearts, coins, challengeDone, weekly, bgmO
           </TouchableOpacity>
         </View>
 
+        {/* ── Banner Ad ── */}
+        <View style={{ alignItems: 'center', marginTop: 10 }}>
+          <BannerAd
+            unitId={AD_IDS.banner}
+            size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+            requestOptions={{ requestNonPersonalizedAdsOnly: true }}
+          />
+        </View>
+
         {/* ── Heart Shop modal ── */}
         {(shopOpen || noHearts) && (
           <Modal transparent animationType="fade">
@@ -1623,6 +1769,23 @@ function StageSelect({ clearedStages, hearts, coins, challengeDone, weekly, bgmO
                   <Text style={s.nextBtnTxt}>📺 広告を見て❤️ × 3もらう</Text>
                 </TouchableOpacity>
 
+                {/* Divider */}
+                <View style={{ width: '100%', height: 1, backgroundColor: 'rgba(255,255,255,0.12)', marginVertical: 4 }} />
+
+                {/* Coin packs (IAP) */}
+                <Text style={{ fontSize: 11, color: GREY, fontWeight: '700', letterSpacing: 1 }}>💎 コインを購入</Text>
+                {COIN_PACKS.map(pack => (
+                  <TouchableOpacity
+                    key={pack.id}
+                    style={[s.nextBtn, { backgroundColor: '#4A5AAD', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}
+                    onPress={() => Alert.alert('💎 コイン購入', `¥${pack.label.replace('¥','')} で 🪙×${pack.coins} を購入しますか？\n\n※ Google Play Console で商品を設定後にご利用いただけます。`, [{ text: 'OK' }])}
+                  >
+                    <Text style={s.nextBtnTxt}>{pack.emoji} 🪙×{pack.coins}</Text>
+                    {pack.badge && <Text style={{ fontSize: 10, color: '#F5C518', fontWeight: '800', marginRight: 4 }}>{pack.badge}</Text>}
+                    <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', fontWeight: '700' }}>{pack.label}</Text>
+                  </TouchableOpacity>
+                ))}
+
                 <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY }]}
                   onPress={() => { setNoHearts(false); setShopOpen(false); }}>
                   <Text style={s.nextBtnTxt}>閉じる</Text>
@@ -1653,6 +1816,9 @@ export default function App() {
   const [weekly, setWeekly]               = useState(initWeeklyProgress);
   const [showMissions, setShowMissions]   = useState(false);
   const [bgmOn, setBgmOn]                 = useState(true);
+  const [colorblind, setColorblind]       = useState(false);
+  const [showSettings, setShowSettings]   = useState(false);
+  const [showAchievements, setShowAchievements] = useState(false);
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -1668,7 +1834,8 @@ export default function App() {
       AsyncStorage.getItem(CHALLENGE_KEY),
       AsyncStorage.getItem(WEEKLY_KEY),
       AsyncStorage.getItem(BGM_KEY),
-    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm]) => {
+      AsyncStorage.getItem(COLORBLIND_KEY),
+    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawCb]) => {
       if (rawP) setClearedStages(new Set(JSON.parse(rawP)));
       if (rawI) setItems(JSON.parse(rawI));
       if (!rawT) setTutorialDone(false);
@@ -1708,6 +1875,7 @@ export default function App() {
       const bgmSaved = rawBgm !== null ? rawBgm === '1' : true;
       setBgmOn(bgmSaved);
       setBGMEnabled(bgmSaved);
+      if (rawCb === '1') setColorblind(true);
     }).catch(() => {});
     initSounds().then(() => playBGM());
     loadRewarded();
@@ -1853,6 +2021,12 @@ export default function App() {
     AsyncStorage.setItem(BGM_KEY, next ? '1' : '0').catch(() => {});
   }
 
+  function toggleColorblind() {
+    const next = !colorblind;
+    setColorblind(next);
+    AsyncStorage.setItem(COLORBLIND_KEY, next ? '1' : '0').catch(() => {});
+  }
+
   function handleSpendCoins(amount) {
     setCoins(prev => {
       const next = Math.max(0, prev - amount);
@@ -1908,6 +2082,7 @@ export default function App() {
         items={items}
         isFirstPlay={!tutorialDone && stage === 1}
         isChallenge={isChallenge}
+        colorblindMode={colorblind}
         onTutorialDone={handleTutorialDone}
         onBack={() => { setChallengeConfig(null); setScreen('stages'); }}
         onNext={() => { setChallengeConfig(null); setScreen('stages'); }}
@@ -1928,12 +2103,12 @@ export default function App() {
         coins={coins}
         challengeDone={challengeDone}
         weekly={weekly}
-        bgmOn={bgmOn}
         onPlayChallenge={handlePlayChallenge}
         onAddHearts={addHearts}
         onSpendCoins={handleSpendCoins}
-        onToggleBGM={toggleBGM}
         onShowMissions={() => setShowMissions(true)}
+        onShowSettings={() => setShowSettings(true)}
+        onShowAchievements={() => setShowAchievements(true)}
         onPlay={stageNum => { consumeHeart(); setStage(stageNum); setScreen('game'); }}
       />
       {dailyBonus && (
@@ -1963,6 +2138,21 @@ export default function App() {
           coins={coins}
           onClaim={(id, reward) => claimWeeklyReward(id, reward)}
           onClose={() => setShowMissions(false)}
+        />
+      )}
+      {showSettings && (
+        <SettingsModal
+          bgmOn={bgmOn}
+          colorblind={colorblind}
+          onToggleBGM={toggleBGM}
+          onToggleColorblind={toggleColorblind}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+      {showAchievements && (
+        <AchievementListModal
+          earnedAchieves={earnedAchieves}
+          onClose={() => setShowAchievements(false)}
         />
       )}
       {toastQueue.length > 0 && (
