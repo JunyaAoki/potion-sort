@@ -15,7 +15,11 @@ const ASSETS = {
   complete8: require('./assets/sounds/complete8.wav'),
 };
 
+const BGM_SRC = require('./assets/bgm.wav');
+
 const cache = {};
+let bgmSound   = null;
+let bgmEnabled = true;
 
 export async function initSounds() {
   try {
@@ -27,8 +31,34 @@ export async function initSounds() {
       const { sound } = await Audio.Sound.createAsync(src, { shouldPlay: false });
       cache[key] = sound;
     }
+    // BGM をループ再生で読み込む（まだ再生はしない）
+    const { sound } = await Audio.Sound.createAsync(BGM_SRC, {
+      shouldPlay: false,
+      isLooping: true,
+      volume: 0.30,
+    });
+    bgmSound = sound;
   } catch {}
 }
+
+export async function playBGM() {
+  if (!bgmEnabled || !bgmSound) return;
+  try {
+    const status = await bgmSound.getStatusAsync();
+    if (status.isLoaded && !status.isPlaying) await bgmSound.playAsync();
+  } catch {}
+}
+
+export async function pauseBGM() {
+  try { if (bgmSound) await bgmSound.pauseAsync(); } catch {}
+}
+
+export function setBGMEnabled(val) {
+  bgmEnabled = val;
+  if (val) playBGM(); else pauseBGM();
+}
+
+export function isBGMEnabled() { return bgmEnabled; }
 
 export async function playSound(key) {
   try {
@@ -40,7 +70,6 @@ export async function playSound(key) {
   } catch {}
 }
 
-// Play with pitch shift by creating a fresh Sound instance at the given rate
 export async function playSoundAt(key, rate) {
   try {
     const src = ASSETS[key];

@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { initSounds, playSound } from './sounds';
+import { initSounds, playSound, playBGM, pauseBGM, setBGMEnabled, isBGMEnabled } from './sounds';
 import { loadRewarded, showRewarded, loadInterstitial, showInterstitial } from './ads';
 import * as StoreReview from 'expo-store-review';
 import {
@@ -69,6 +69,27 @@ const REVIEW_KEY      = 'ballsort_review_v1';
 const REVIEW_STAGE    = 10;
 const CHALLENGE_KEY   = 'ballsort_challenge_v1';
 const ACHIEVE_KEY     = 'ballsort_achieve_v1';
+const WEEKLY_KEY      = 'ballsort_weekly_v1';
+const BGM_KEY         = 'ballsort_bgm_v1';
+
+// ── Weekly Missions ────────────────────────────────────────
+const WEEKLY_MISSIONS = [
+  { id: 'w_clear3',    emoji: '🎯', title: '3ステージクリア',    desc: '今週3ステージをクリア',       target: 3, reward: 50,  type: 'clear' },
+  { id: 'w_clear7',    emoji: '⚡', title: '7ステージクリア',    desc: '今週7ステージをクリア',       target: 7, reward: 120, type: 'clear' },
+  { id: 'w_perfect3',  emoji: '⭐', title: '3つ星を3回',         desc: '3つ星で3回クリア',            target: 3, reward: 80,  type: 'perfect' },
+  { id: 'w_challenge', emoji: '🧪', title: 'チャレンジクリア',   desc: 'デイリーチャレンジをクリア',  target: 1, reward: 60,  type: 'challenge' },
+];
+
+function getWeekKey() {
+  const d    = new Date();
+  const jan1 = new Date(d.getFullYear(), 0, 1);
+  const week = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+  return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+function initWeeklyProgress() {
+  return { weekKey: getWeekKey(), progress: Object.fromEntries(WEEKLY_MISSIONS.map(m => [m.id, { current: 0, claimed: false }])) };
+}
 
 // ── Achievements ───────────────────────────────────────────
 const ACHIEVEMENTS = [
@@ -541,6 +562,82 @@ function PurchaseModal({ type, onClose, onWatchAd, onBuy }) {
           </TouchableOpacity>
           <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY }]} onPress={onClose}>
             <Text style={s.nextBtnTxt}>キャンセル</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+// ── Weekly Missions Modal ──────────────────────────────────
+function WeeklyMissionsModal({ weekly, coins, onClaim, onClose }) {
+  const scale = useRef(new Animated.Value(0.85)).current;
+  useEffect(() => {
+    Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
+  }, []);
+  return (
+    <Modal transparent animationType="fade">
+      <View style={s.overlay}>
+        <Animated.View style={[s.winCard, { transform: [{ scale }], gap: 10, paddingVertical: 24 }]}>
+          <Text style={{ fontSize: 36 }}>📋</Text>
+          <Text style={[s.winTitle, { fontSize: 20 }]}>ウィークリーミッション</Text>
+          <Text style={{ fontSize: 11, color: GREY, marginTop: -6 }}>今週のリセットまで残り{
+            (() => {
+              const now  = new Date();
+              const next = new Date(now);
+              next.setDate(now.getDate() + (7 - now.getDay()) % 7 + 1);
+              next.setHours(0, 0, 0, 0);
+              const ms   = next - now;
+              const h    = Math.floor(ms / 3600000);
+              const m    = Math.floor((ms % 3600000) / 60000);
+              return `${h}時間${m}分`;
+            })()
+          }</Text>
+
+          {WEEKLY_MISSIONS.map(m => {
+            const p       = weekly.progress[m.id] ?? { current: 0, claimed: false };
+            const done    = p.current >= m.target;
+            const claimed = p.claimed;
+            const pct     = Math.min(1, p.current / m.target);
+            return (
+              <View key={m.id} style={{
+                width: '100%',
+                backgroundColor: claimed ? 'rgba(39,199,87,0.1)' : done ? 'rgba(245,197,24,0.1)' : 'rgba(255,255,255,0.05)',
+                borderRadius: 14, padding: 12,
+                borderWidth: 1,
+                borderColor: claimed ? '#27C757' : done ? '#F5C518' : 'rgba(255,255,255,0.12)',
+              }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Text style={{ fontSize: 24 }}>{m.emoji}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: claimed ? '#27C757' : '#E8D8A0' }}>
+                      {m.title}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: GREY }}>{m.desc}</Text>
+                  </View>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#F5C518' }}>🪙+{m.reward}</Text>
+                </View>
+
+                {/* Progress bar */}
+                <View style={{ marginTop: 8, height: 5, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 3, overflow: 'hidden' }}>
+                  <View style={{ width: `${pct * 100}%`, height: '100%', backgroundColor: claimed ? '#27C757' : done ? '#F5C518' : '#2F7BF0', borderRadius: 3 }} />
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 3 }}>
+                  <Text style={{ fontSize: 10, color: GREY }}>{Math.min(p.current, m.target)}/{m.target}</Text>
+                  {done && !claimed && (
+                    <TouchableOpacity onPress={() => onClaim(m.id, m.reward)}
+                      style={{ backgroundColor: '#F5C518', paddingHorizontal: 10, paddingVertical: 2, borderRadius: 8 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: '#333' }}>受け取る！</Text>
+                    </TouchableOpacity>
+                  )}
+                  {claimed && <Text style={{ fontSize: 10, color: '#27C757', fontWeight: '700' }}>✅ 受取済み</Text>}
+                </View>
+              </View>
+            );
+          })}
+
+          <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY, marginTop: 4 }]} onPress={onClose}>
+            <Text style={s.nextBtnTxt}>閉じる</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -1266,7 +1363,7 @@ const TOTAL_STAGES = 50;
 const HEART_COIN_COST  = 30;   // 1 heart
 const REFILL_COIN_COST = 100;  // full refill
 
-function StageSelect({ clearedStages, hearts, coins, challengeDone, onPlay, onPlayChallenge, onAddHearts, onSpendCoins }) {
+function StageSelect({ clearedStages, hearts, coins, challengeDone, weekly, bgmOn, onPlay, onPlayChallenge, onAddHearts, onSpendCoins, onToggleBGM, onShowMissions }) {
   const nextStage  = clearedStages.size > 0 ? Math.max(...clearedStages) + 1 : 1;
   const cfg        = getStageConfig(nextStage);
   const [timeLeft, setTimeLeft] = useState('');
@@ -1348,6 +1445,18 @@ function StageSelect({ clearedStages, hearts, coins, challengeDone, onPlay, onPl
             ) : null}
           </View>
 
+          {/* BGM toggle */}
+          <TouchableOpacity
+            onPress={onToggleBGM}
+            style={{
+              width: 40, height: 40, borderRadius: 20,
+              backgroundColor: 'rgba(255,255,255,0.10)',
+              alignItems: 'center', justifyContent: 'center',
+              borderWidth: 1, borderColor: 'rgba(200,160,80,0.4)',
+            }}>
+            <Text style={{ fontSize: 18 }}>{bgmOn ? '🎵' : '🔇'}</Text>
+          </TouchableOpacity>
+
           {/* Shop button */}
           <TouchableOpacity
             onPress={() => setShopOpen(true)}
@@ -1409,6 +1518,38 @@ function StageSelect({ clearedStages, hearts, coins, challengeDone, onPlay, onPl
               </Text>
             </TouchableOpacity>
           </Animated.View>
+
+          {/* ── Weekly Missions button ── */}
+          {(() => {
+            const claimable = weekly && WEEKLY_MISSIONS.some(m => {
+              const p = weekly.progress[m.id];
+              return p && p.current >= m.target && !p.claimed;
+            });
+            return (
+              <TouchableOpacity
+                onPress={onShowMissions}
+                activeOpacity={0.82}
+                style={{
+                  marginTop: 10,
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+                  paddingVertical: 12, borderRadius: 24,
+                  backgroundColor: claimable ? 'rgba(245,197,24,0.18)' : 'rgba(20,10,50,0.75)',
+                  borderWidth: 1.5,
+                  borderColor: claimable ? '#F5C518' : 'rgba(100,100,180,0.4)',
+                }}
+              >
+                <Text style={{ fontSize: 20 }}>📋</Text>
+                <View>
+                  <Text style={{ color: claimable ? '#F5C518' : '#E8D8A0', fontSize: 13, fontWeight: '800', letterSpacing: 1 }}>
+                    WEEKLY MISSIONS
+                  </Text>
+                  <Text style={{ color: 'rgba(200,180,255,0.65)', fontSize: 11, marginTop: 1 }}>
+                    {claimable ? '🎁 報酬が受け取れます！' : `${WEEKLY_MISSIONS.filter(m => weekly?.progress[m.id]?.claimed).length}/${WEEKLY_MISSIONS.length} 達成`}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })()}
 
           {/* ── Daily Challenge button ── */}
           <TouchableOpacity
@@ -1509,6 +1650,9 @@ export default function App() {
   const [earnedAchieves, setEarnedAchieves] = useState(new Set());
   const [toastQueue, setToastQueue]       = useState([]);
   const [challengeDone, setChallengeDone] = useState(false);
+  const [weekly, setWeekly]               = useState(initWeeklyProgress);
+  const [showMissions, setShowMissions]   = useState(false);
+  const [bgmOn, setBgmOn]                 = useState(true);
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -1522,7 +1666,9 @@ export default function App() {
       AsyncStorage.getItem(REVIEW_KEY),
       AsyncStorage.getItem(ACHIEVE_KEY),
       AsyncStorage.getItem(CHALLENGE_KEY),
-    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh]) => {
+      AsyncStorage.getItem(WEEKLY_KEY),
+      AsyncStorage.getItem(BGM_KEY),
+    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm]) => {
       if (rawP) setClearedStages(new Set(JSON.parse(rawP)));
       if (rawI) setItems(JSON.parse(rawI));
       if (!rawT) setTutorialDone(false);
@@ -1552,8 +1698,18 @@ export default function App() {
         const ch = JSON.parse(rawCh);
         if (ch.date === today) setChallengeDone(true);
       }
+      // ウィークリーミッション読み込み（週が変わったらリセット）
+      const thisWeek = getWeekKey();
+      if (rawW) {
+        const w = JSON.parse(rawW);
+        setWeekly(w.weekKey === thisWeek ? w : initWeeklyProgress());
+      }
+      // BGM設定
+      const bgmSaved = rawBgm !== null ? rawBgm === '1' : true;
+      setBgmOn(bgmSaved);
+      setBGMEnabled(bgmSaved);
     }).catch(() => {});
-    initSounds();
+    initSounds().then(() => playBGM());
     loadRewarded();
     loadInterstitial();
     requestNotificationPermission().then(granted => {
@@ -1648,14 +1804,53 @@ export default function App() {
         if (!raw) setShowReview(true);
       }).catch(() => {});
     }
+    updateWeeklyProgress(stars, isChallenge);
     setClearedStages(prev => {
       const next = new Set(prev);
       next.add(stageNum);
       saveProgress(next);
-      const daily = null; // streak は dailyBonus から取得
       checkAchievements(next, stars, isChallenge, dailyBonus?.streak ?? 0);
       return next;
     });
+  }
+
+  function updateWeeklyProgress(stars, isChallenge) {
+    setWeekly(prev => {
+      const thisWeek = getWeekKey();
+      const base = prev.weekKey === thisWeek ? prev : initWeeklyProgress();
+      const p = { ...base.progress };
+      // クリア数カウント
+      p['w_clear3']    = { ...p['w_clear3'],    current: p['w_clear3'].current + 1 };
+      p['w_clear7']    = { ...p['w_clear7'],    current: p['w_clear7'].current + 1 };
+      // 3つ星カウント
+      if (stars === 3) p['w_perfect3'] = { ...p['w_perfect3'], current: p['w_perfect3'].current + 1 };
+      // チャレンジカウント
+      if (isChallenge) p['w_challenge'] = { ...p['w_challenge'], current: p['w_challenge'].current + 1 };
+      const next = { weekKey: thisWeek, progress: p };
+      AsyncStorage.setItem(WEEKLY_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }
+
+  function claimWeeklyReward(missionId, reward) {
+    setWeekly(prev => {
+      const p = { ...prev.progress, [missionId]: { ...prev.progress[missionId], claimed: true } };
+      const next = { ...prev, progress: p };
+      AsyncStorage.setItem(WEEKLY_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+    setCoins(prev => {
+      const next = prev + reward;
+      AsyncStorage.setItem(COINS_KEY, String(next)).catch(() => {});
+      return next;
+    });
+  }
+
+  function toggleBGM() {
+    const next = !bgmOn;
+    setBgmOn(next);
+    setBGMEnabled(next);
+    AsyncStorage.setItem(BGM_KEY, next ? '1' : '0').catch(() => {});
   }
 
   function handleSpendCoins(amount) {
@@ -1732,9 +1927,13 @@ export default function App() {
         hearts={hearts}
         coins={coins}
         challengeDone={challengeDone}
+        weekly={weekly}
+        bgmOn={bgmOn}
         onPlayChallenge={handlePlayChallenge}
         onAddHearts={addHearts}
         onSpendCoins={handleSpendCoins}
+        onToggleBGM={toggleBGM}
+        onShowMissions={() => setShowMissions(true)}
         onPlay={stageNum => { consumeHeart(); setStage(stageNum); setScreen('game'); }}
       />
       {dailyBonus && (
@@ -1756,6 +1955,14 @@ export default function App() {
             AsyncStorage.setItem(REVIEW_KEY, 'declined').catch(() => {});
             setShowReview(false);
           }}
+        />
+      )}
+      {showMissions && (
+        <WeeklyMissionsModal
+          weekly={weekly}
+          coins={coins}
+          onClaim={(id, reward) => claimWeeklyReward(id, reward)}
+          onClose={() => setShowMissions(false)}
         />
       )}
       {toastQueue.length > 0 && (
