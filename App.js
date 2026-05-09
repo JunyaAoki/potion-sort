@@ -7,7 +7,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { initSounds, playSound } from './sounds';
-import { loadRewarded, showRewarded } from './ads';
+import { loadRewarded, showRewarded, loadInterstitial, showInterstitial } from './ads';
 import * as StoreReview from 'expo-store-review';
 import {
   requestNotificationPermission,
@@ -661,6 +661,48 @@ function WinOverlay({ moves, stage, stageColor, coinsEarned, onNext, onReplay })
   );
 }
 
+// ── Deadlock Detector ──────────────────────────────────────
+function isDeadlocked(tubes, cap) {
+  for (let f = 0; f < tubes.length; f++) {
+    if (!tubes[f].length) continue;
+    const top = tubes[f].at(-1);
+    for (let t = 0; t < tubes.length; t++) {
+      if (t === f || tubes[t].length >= cap) continue;
+      if (!tubes[t].length || tubes[t].at(-1) === top) return false;
+    }
+  }
+  return true;
+}
+
+// ── Deadlock Modal ─────────────────────────────────────────
+function DeadlockModal({ onRestart, onUndo, hasUndo }) {
+  const scale = useRef(new Animated.Value(0.8)).current;
+  useEffect(() => {
+    Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
+  }, []);
+  return (
+    <Modal transparent animationType="fade">
+      <View style={s.overlay}>
+        <Animated.View style={[s.winCard, { transform: [{ scale }], gap: 12 }]}>
+          <Text style={{ fontSize: 52 }}>😵</Text>
+          <Text style={[s.winTitle, { fontSize: 22, textAlign: 'center' }]}>詰みました！</Text>
+          <Text style={{ fontSize: 14, color: GREY, textAlign: 'center', lineHeight: 20 }}>
+            これ以上動かせません。{'\n'}やり直しましょう！
+          </Text>
+          {hasUndo && (
+            <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#2F7BF0' }]} onPress={onUndo}>
+              <Text style={s.nextBtnTxt}>↩ 一手戻す</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#E84343' }]} onPress={onRestart}>
+            <Text style={s.nextBtnTxt}>🔄 やり直す</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
 // ── Game Screen ────────────────────────────────────────────
 function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem }) {
   const cfg = challengeOverride
@@ -677,6 +719,8 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
   const [purchaseType, setPurchaseType] = useState(null);
   const [tutorialStep, setTutorialStep] = useState(isFirstPlay ? 1 : 0);
   const [coinsEarned, setCoinsEarned]   = useState(0);
+  const [deadlocked, setDeadlocked]     = useState(false);
+  const restartCountRef = useRef(0);
 
   function advanceTutorial() {
     if (tutorialStep < TUTORIAL_STEPS.length) {
@@ -811,6 +855,10 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
         onStageComplete?.(stage, coins, starsWon, isChallenge);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         playSound('win');
+      } else if (isDeadlocked(nt, cap)) {
+        setDeadlocked(true);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+        playSound('error');
       } else if (justCompleted) {
         playSound(`complete${Math.min(newCompleted, 8)}`);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
@@ -992,9 +1040,19 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
     setSelected(null);
     setMoves(0);
     setWon(false);
+    setDeadlocked(false);
     setHistory([]);
     isAnimating.current = false;
     completedRef.current = 0;
+  }
+
+  function restartWithAd() {
+    restartCountRef.current += 1;
+    if (restartCountRef.current % 3 === 0) {
+      showInterstitial(() => restart());
+    } else {
+      restart();
+    }
   }
 
   const rowData = rows === 1
@@ -1056,7 +1114,7 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
 
         <View style={{ flex: 1 }} />
 
-        <TouchableOpacity style={[s.restartBtn, { backgroundColor: 'rgba(255,255,255,0.12)' }]} onPress={restart}>
+        <TouchableOpacity style={[s.restartBtn, { backgroundColor: 'rgba(255,255,255,0.12)' }]} onPress={restartWithAd}>
           <Text style={s.restartBtnTxt}>🔄</Text>
         </TouchableOpacity>
       </View>
@@ -1116,6 +1174,14 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
           moves={moves} stage={stage} stageColor={stageColor}
           coinsEarned={coinsEarned}
           onNext={onNext} onReplay={restart}
+        />
+      )}
+
+      {deadlocked && !won && (
+        <DeadlockModal
+          hasUndo={history.length > 0}
+          onUndo={() => { setDeadlocked(false); handleUndo(); }}
+          onRestart={restartWithAd}
         />
       )}
 
@@ -1489,6 +1555,7 @@ export default function App() {
     }).catch(() => {});
     initSounds();
     loadRewarded();
+    loadInterstitial();
     requestNotificationPermission().then(granted => {
       if (granted) scheduleDailyReminder();
     });
