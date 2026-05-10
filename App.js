@@ -925,6 +925,45 @@ function DeadlockModal({ onRestart, onUndo, hasUndo }) {
   );
 }
 
+// ── Floating Completion Badge ──────────────────────────────
+function FloatingCheck({ x, y, color, onDone }) {
+  const translateY = useRef(new Animated.Value(0)).current;
+  const opacity    = useRef(new Animated.Value(0)).current;
+  const scale      = useRef(new Animated.Value(0.3)).current;
+  useEffect(() => {
+    Animated.sequence([
+      Animated.parallel([
+        Animated.spring(scale,   { toValue: 1, friction: 4, tension: 120, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 150, useNativeDriver: true }),
+      ]),
+      Animated.delay(480),
+      Animated.parallel([
+        Animated.timing(translateY, { toValue: -72, duration: 580, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(opacity,    { toValue: 0,   duration: 480, delay: 100, useNativeDriver: true }),
+      ]),
+    ]).start(onDone);
+  }, []);
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: 'absolute', zIndex: 998,
+        left: x - 24, top: y - 52,
+        width: 48, height: 48, borderRadius: 24,
+        backgroundColor: color,
+        alignItems: 'center', justifyContent: 'center',
+        transform: [{ translateY }, { scale }],
+        opacity,
+        shadowColor: color,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.8, shadowRadius: 14, elevation: 14,
+      }}
+    >
+      <Text style={{ fontSize: 22, color: '#fff', fontWeight: '900' }}>✓</Text>
+    </Animated.View>
+  );
+}
+
 // ── Game Screen ────────────────────────────────────────────
 function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride, colorblindMode, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem }) {
   const cfg = challengeOverride
@@ -943,6 +982,8 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
   const [coinsEarned, setCoinsEarned]   = useState(0);
   const [deadlocked, setDeadlocked]     = useState(false);
   const restartCountRef = useRef(0);
+  const glowAnims       = useRef(Array.from({ length: tubes.length }, () => new Animated.Value(0))).current;
+  const [floatingChecks, setFloatingChecks] = useState([]);
 
   function advanceTutorial() {
     if (tutorialStep < TUTORIAL_STEPS.length) {
@@ -1084,6 +1125,31 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
       } else if (justCompleted) {
         playSound(`complete${Math.min(newCompleted, 8)}`);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+        // Find which specific tubes just completed → trigger glow + floating badge
+        const newlyDoneIdxs = nt
+          .map((t, ti) => ti)
+          .filter(ti => {
+            const nowDone = nt[ti].length === cap && nt[ti].length > 0 && nt[ti].every(b => b === nt[ti][0]);
+            const wasDone = prevTubes[ti].length === cap && prevTubes[ti].length > 0 && prevTubes[ti].every(b => b === prevTubes[ti][0]);
+            return nowDone && !wasDone;
+          });
+        newlyDoneIdxs.forEach(ti => {
+          glowAnims[ti].setValue(0);
+          Animated.sequence([
+            Animated.timing(glowAnims[ti], { toValue: 1,    duration: 250, useNativeDriver: true }),
+            Animated.timing(glowAnims[ti], { toValue: 0.42, duration: 210, useNativeDriver: true }),
+            Animated.timing(glowAnims[ti], { toValue: 0.78, duration: 180, useNativeDriver: true }),
+            Animated.timing(glowAnims[ti], { toValue: 0,    duration: 920, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+          ]).start();
+          const ref = tubeViewRefs.current[ti];
+          if (ref) {
+            ref.measure((fx, fy, fw, fh, px, py) => {
+              const color = PALETTE[nt[ti][0]];
+              const key   = `check-${ti}-${Date.now()}`;
+              setFloatingChecks(prev => [...prev, { key, x: px + fw / 2, y: py, color }]);
+            });
+          }
+        });
       } else {
         playSound('move');
       }
@@ -1250,6 +1316,8 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
   }
 
   function restart() {
+    glowAnims.forEach(a => a.setValue(0));
+    setFloatingChecks([]);
     tiltAnims.forEach(a => a.setValue(0));
     moveXAnims.forEach(a => a.setValue(0));
     moveYAnims.forEach(a => a.setValue(0));
@@ -1345,41 +1413,58 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
       <View style={s.board}>
         {rowData.map((row, ri) => (
           <View key={ri} style={s.tubeRow}>
-            {row.map(i => (
-              <Animated.View key={i} style={{
-                transform: [
-                  { translateX: Animated.add(shakeAnims[i], moveXAnims[i]) },
-                  { translateY: moveYAnims[i] },
-                  { scale: selected === i ? selAnim : bounceAnims[i] },
-                  { rotate: tiltAnims[i].interpolate({
-                      inputRange: [-45, 0, 45],
-                      outputRange: ['-45deg', '0deg', '45deg'],
-                    }),
-                  },
-                ],
-              }}>
-                <TouchableOpacity
-                  ref={el => { tubeViewRefs.current[i] = el; }}
-                  onPress={() => onTap(i)}
-                  activeOpacity={0.9}
-                >
-                  <Tube
-                    balls={tubes[i]} cap={cap}
-                    selected={selected === i}
-                    tubeW={tubeW} tubeH={tubeH}
-                    stageColor={stageColor}
-                    isDraining={pourInfo?.srcIdx === i}
-                    drainCnt={pourInfo?.drainCnt ?? 0}
-                    drainAnim={drainAnim}
-                    isFilling={pourInfo?.dstIdx === i}
-                    fillCnt={pourInfo?.drainCnt ?? 0}
-                    fillColorIdx={pourInfo?.fillColor ?? 0}
-                    fillAnim={fillAnim}
-                    colorblindMode={colorblindMode}
+            {row.map(i => {
+              const tubeBaseColor = tubes[i].length > 0 ? PALETTE[tubes[i][0]] : '#fff';
+              return (
+                <View key={i} style={{ alignItems: 'center' }}>
+                  {/* Completion glow aura — animates via glowAnims[i] */}
+                  <Animated.View
+                    pointerEvents="none"
+                    style={{
+                      position: 'absolute',
+                      top: -8, left: -14, right: -14, bottom: -8,
+                      borderRadius: (tubeW + 28) / 2,
+                      backgroundColor: tubeBaseColor,
+                      opacity: glowAnims[i].interpolate({ inputRange: [0, 1], outputRange: [0, 0.52] }),
+                      transform: [{ scale: glowAnims[i].interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.14, 1.06] }) }],
+                    }}
                   />
-                </TouchableOpacity>
-              </Animated.View>
-            ))}
+                  <Animated.View style={{
+                    transform: [
+                      { translateX: Animated.add(shakeAnims[i], moveXAnims[i]) },
+                      { translateY: moveYAnims[i] },
+                      { scale: selected === i ? selAnim : bounceAnims[i] },
+                      { rotate: tiltAnims[i].interpolate({
+                          inputRange: [-45, 0, 45],
+                          outputRange: ['-45deg', '0deg', '45deg'],
+                        }),
+                      },
+                    ],
+                  }}>
+                    <TouchableOpacity
+                      ref={el => { tubeViewRefs.current[i] = el; }}
+                      onPress={() => onTap(i)}
+                      activeOpacity={0.9}
+                    >
+                      <Tube
+                        balls={tubes[i]} cap={cap}
+                        selected={selected === i}
+                        tubeW={tubeW} tubeH={tubeH}
+                        stageColor={stageColor}
+                        isDraining={pourInfo?.srcIdx === i}
+                        drainCnt={pourInfo?.drainCnt ?? 0}
+                        drainAnim={drainAnim}
+                        isFilling={pourInfo?.dstIdx === i}
+                        fillCnt={pourInfo?.drainCnt ?? 0}
+                        fillColorIdx={pourInfo?.fillColor ?? 0}
+                        fillAnim={fillAnim}
+                        colorblindMode={colorblindMode}
+                      />
+                    </TouchableOpacity>
+                  </Animated.View>
+                </View>
+              );
+            })}
           </View>
         ))}
       </View>
@@ -1478,6 +1563,17 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
           })}
         </Animated.View>
       )}
+
+      {/* Floating completion badges */}
+      {floatingChecks.map(fc => (
+        <FloatingCheck
+          key={fc.key}
+          x={fc.x}
+          y={fc.y}
+          color={fc.color}
+          onDone={() => setFloatingChecks(prev => prev.filter(c => c.key !== fc.key))}
+        />
+      ))}
       </SafeAreaView>
     </ImageBackground>
   );
