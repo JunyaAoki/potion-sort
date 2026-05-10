@@ -72,6 +72,7 @@ const ACHIEVE_KEY     = 'ballsort_achieve_v1';
 const WEEKLY_KEY      = 'ballsort_weekly_v1';
 const BGM_KEY         = 'ballsort_bgm_v1';
 const COLORBLIND_KEY  = 'ballsort_colorblind_v1';
+const STARS_KEY       = 'ballsort_stars_v1';
 
 // 色覚サポート用シンボル（色ごとに固有の記号）
 const CB_SYMBOLS = ['✕','◆','★','▲','●','■','♥','○','▼','✦'];
@@ -1482,50 +1483,84 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
   );
 }
 
+// ── Stage Cell ─────────────────────────────────────────────
+function StageCell({ num, stars, isCleared, isCurrent, isLocked, bandColor, cellSize, onPress }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  function handlePress() {
+    Animated.sequence([
+      Animated.timing(scale, { toValue: 0.88, duration: 80, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, friction: 4, useNativeDriver: true }),
+    ]).start(() => { if (!isLocked) onPress(); });
+  }
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <TouchableOpacity onPress={handlePress} activeOpacity={0.85} style={{
+        width: cellSize, height: cellSize, borderRadius: 14,
+        alignItems: 'center', justifyContent: 'center',
+        backgroundColor: isCurrent ? bandColor : isCleared ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.03)',
+        borderWidth: 1.5,
+        borderColor: isCurrent ? 'rgba(255,240,180,0.6)' : isCleared ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.06)',
+        shadowColor: isCurrent ? bandColor : 'transparent',
+        shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.7, shadowRadius: 10, elevation: isCurrent ? 10 : 0,
+      }}>
+        {isLocked ? (
+          <Text style={{ fontSize: 16, opacity: 0.22 }}>🔒</Text>
+        ) : (
+          <>
+            <Text style={{ fontSize: num >= 10 ? 14 : 16, fontWeight: '900', color: isCurrent ? '#fff' : '#E8D8A0' }}>
+              {num}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 1, marginTop: 2 }}>
+              {[1,2,3].map(s => (
+                <Text key={s} style={{ fontSize: 8, color: s <= stars ? '#F5C518' : 'rgba(255,255,255,0.12)' }}>★</Text>
+              ))}
+            </View>
+          </>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
 // ── Stage Select Screen ────────────────────────────────────
 const TOTAL_STAGES = 50;
+const HEART_COIN_COST  = 30;
+const REFILL_COIN_COST = 100;
 
-const HEART_COIN_COST  = 30;   // 1 heart
-const REFILL_COIN_COST = 100;  // full refill
-
-function StageSelect({ clearedStages, hearts, coins, challengeDone, weekly, onPlay, onPlayChallenge, onAddHearts, onSpendCoins, onShowMissions, onShowSettings, onShowAchievements }) {
-  const nextStage  = clearedStages.size > 0 ? Math.max(...clearedStages) + 1 : 1;
-  const cfg        = getStageConfig(nextStage);
-  const [timeLeft, setTimeLeft] = useState('');
+function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, weekly, onPlay, onPlayChallenge, onAddHearts, onSpendCoins, onShowMissions, onShowSettings, onShowAchievements }) {
+  const nextStage = Math.min(TOTAL_STAGES + 1, clearedStages.size > 0 ? Math.max(...clearedStages) + 1 : 1);
   const [shopOpen, setShopOpen] = useState(false);
   const [noHearts, setNoHearts] = useState(false);
-  const btnScale   = useRef(new Animated.Value(1)).current;
+  const [timeLeft, setTimeLeft] = useState('');
   const challenge  = getDailyChallengeConfig();
-
-  function buyHeart(count, coinCost) {
-    if (coins < coinCost) return;
-    onSpendCoins(coinCost);
-    onAddHearts(count);
-    setShopOpen(false);
-    setNoHearts(false);
-  }
+  const STAGES_PER_ROW = 5;
+  const cellSize = Math.floor((SW - 40 - (STAGES_PER_ROW - 1) * 8) / STAGES_PER_ROW);
 
   useEffect(() => {
     if (hearts.count >= MAX_HEARTS || !hearts.nextRegenAt) { setTimeLeft(''); return; }
     const tick = () => {
       const ms = hearts.nextRegenAt - Date.now();
       if (ms <= 0) { setTimeLeft(''); return; }
-      const m = Math.floor(ms / 60000);
-      const s = Math.floor((ms % 60000) / 1000);
-      setTimeLeft(`${m}:${String(s).padStart(2, '0')}`);
+      const m   = Math.floor(ms / 60000);
+      const sec = Math.floor((ms % 60000) / 1000);
+      setTimeLeft(`${m}:${String(sec).padStart(2, '0')}`);
     };
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [hearts]);
 
-  function handlePlay() {
+  function handleCellPress(num) {
     if (hearts.count <= 0) { setNoHearts(true); return; }
-    Animated.sequence([
-      Animated.timing(btnScale, { toValue: 0.93, duration: 90, useNativeDriver: true }),
-      Animated.spring(btnScale,  { toValue: 1,   friction: 4,  useNativeDriver: true }),
-    ]).start(() => onPlay(nextStage));
+    onPlay(num);
   }
+
+  const iconBtn = {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(200,160,80,0.4)',
+  };
 
   return (
     <ImageBackground source={require('./assets/background.png')} style={{ flex: 1 }} resizeMode="cover">
@@ -1536,127 +1571,125 @@ function StageSelect({ clearedStages, hearts, coins, challengeDone, weekly, onPl
         {/* ── Top bar ── */}
         <View style={{
           flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-          paddingHorizontal: 16, paddingVertical: 10,
+          paddingHorizontal: 14, paddingVertical: 10,
           backgroundColor: 'rgba(10,6,30,0.72)',
           borderBottomWidth: 1, borderBottomColor: 'rgba(180,140,55,0.3)',
         }}>
-          {/* Progress */}
-          <View style={{ alignItems: 'center' }}>
+          <View style={{ alignItems: 'center', minWidth: 42 }}>
             <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.6)', letterSpacing: 2, fontWeight: '700' }}>STAGE</Text>
-            <Text style={{ fontSize: 18, fontWeight: '900', color: '#E8D8A0' }}>
-              {nextStage} <Text style={{ fontSize: 12, color: 'rgba(200,180,255,0.5)' }}>/ {TOTAL_STAGES}</Text>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: '#E8D8A0' }}>
+              {Math.min(nextStage, TOTAL_STAGES)}<Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.5)' }}>/{TOTAL_STAGES}</Text>
             </Text>
           </View>
-
-          {/* Coins */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5,
-            backgroundColor: 'rgba(245,197,24,0.15)', paddingHorizontal: 12, paddingVertical: 6,
-            borderRadius: 16, borderWidth: 1, borderColor: 'rgba(245,197,24,0.35)' }}>
-            <Text style={{ fontSize: 16 }}>🪙</Text>
-            <Text style={{ fontSize: 16, fontWeight: '900', color: '#F5C518' }}>{coins}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4,
+            backgroundColor: 'rgba(245,197,24,0.15)', paddingHorizontal: 10, paddingVertical: 5,
+            borderRadius: 14, borderWidth: 1, borderColor: 'rgba(245,197,24,0.35)' }}>
+            <Text style={{ fontSize: 14 }}>🪙</Text>
+            <Text style={{ fontSize: 14, fontWeight: '900', color: '#F5C518' }}>{coins}</Text>
           </View>
-
-          {/* Hearts */}
           <View style={{ alignItems: 'center' }}>
-            <View style={{ flexDirection: 'row', gap: 3 }}>
+            <View style={{ flexDirection: 'row', gap: 2 }}>
               {Array.from({ length: MAX_HEARTS }, (_, i) => (
-                <Text key={i} style={{ fontSize: 20 }}>{i < hearts.count ? '❤️' : '🖤'}</Text>
+                <Text key={i} style={{ fontSize: 16 }}>{i < hearts.count ? '❤️' : '🖤'}</Text>
               ))}
             </View>
             {timeLeft ? (
-              <Text style={{ fontSize: 11, color: '#F5C518', fontWeight: '700', marginTop: 2 }}>+❤️ {timeLeft}</Text>
+              <Text style={{ fontSize: 10, color: '#F5C518', fontWeight: '700', marginTop: 1 }}>+❤️ {timeLeft}</Text>
             ) : hearts.count >= MAX_HEARTS ? (
-              <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.5)', marginTop: 2 }}>MAX</Text>
+              <Text style={{ fontSize: 9, color: 'rgba(200,180,255,0.5)', marginTop: 1 }}>MAX</Text>
             ) : null}
           </View>
-
-          {/* Achievements button */}
-          <TouchableOpacity
-            onPress={onShowAchievements}
-            style={{
-              width: 40, height: 40, borderRadius: 20,
-              backgroundColor: 'rgba(255,255,255,0.10)',
-              alignItems: 'center', justifyContent: 'center',
-              borderWidth: 1, borderColor: 'rgba(200,160,80,0.4)',
-            }}>
-            <Text style={{ fontSize: 18 }}>🏆</Text>
-          </TouchableOpacity>
-
-          {/* Settings button */}
-          <TouchableOpacity
-            onPress={onShowSettings}
-            style={{
-              width: 40, height: 40, borderRadius: 20,
-              backgroundColor: 'rgba(255,255,255,0.10)',
-              alignItems: 'center', justifyContent: 'center',
-              borderWidth: 1, borderColor: 'rgba(200,160,80,0.4)',
-            }}>
-            <Text style={{ fontSize: 18 }}>⚙️</Text>
-          </TouchableOpacity>
-
-          {/* Shop button */}
-          <TouchableOpacity
-            onPress={() => setShopOpen(true)}
-            style={{
-              width: 40, height: 40, borderRadius: 20,
-              backgroundColor: 'rgba(255,255,255,0.10)',
-              alignItems: 'center', justifyContent: 'center',
-              borderWidth: 1, borderColor: 'rgba(200,160,80,0.4)',
-            }}>
-            <Text style={{ fontSize: 20 }}>🏪</Text>
-          </TouchableOpacity>
+          <TouchableOpacity onPress={onShowAchievements} style={iconBtn}><Text style={{ fontSize: 16 }}>🏆</Text></TouchableOpacity>
+          <TouchableOpacity onPress={onShowSettings}     style={iconBtn}><Text style={{ fontSize: 16 }}>⚙️</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => setShopOpen(true)} style={iconBtn}><Text style={{ fontSize: 18 }}>🏪</Text></TouchableOpacity>
         </View>
 
-        {/* ── Center: title ── */}
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{
-            fontSize: 42, fontWeight: '900', letterSpacing: 4, color: '#E8D08A',
-            textShadowColor: 'rgba(200,100,255,0.9)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 22,
-          }}>
-            POTION
-          </Text>
-          <Text style={{
-            fontSize: 42, fontWeight: '900', letterSpacing: 4, color: '#E8D08A',
-            textShadowColor: 'rgba(200,100,255,0.9)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 22,
-            marginTop: -8,
-          }}>
-            SORT
-          </Text>
-          <Text style={{ fontSize: 12, color: 'rgba(200,180,255,0.65)', letterSpacing: 3, marginTop: 6 }}>
-            ✦ LIQUID PUZZLE ✦
-          </Text>
-          {clearedStages.size > 0 && (
-            <Text style={{ fontSize: 13, color: 'rgba(220,200,255,0.5)', marginTop: 14 }}>
-              {clearedStages.size} ステージクリア済み
+        {/* ── Stage Map ── */}
+        <ScrollView
+          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 24 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Title */}
+          <View style={{ alignItems: 'center', marginBottom: 16 }}>
+            <Text style={{ fontSize: 32, fontWeight: '900', letterSpacing: 4, color: '#E8D08A',
+              textShadowColor: 'rgba(200,100,255,0.9)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 18 }}>
+              POTION SORT
             </Text>
-          )}
-        </View>
-
-        {/* ── Play button ── */}
-        <View style={{ paddingHorizontal: 28, paddingBottom: 40 }}>
-          <Animated.View style={{ transform: [{ scale: btnScale }] }}>
-            <TouchableOpacity
-              onPress={handlePlay}
-              activeOpacity={1}
-              style={{
-                backgroundColor: cfg.stageColor,
-                paddingVertical: 22, borderRadius: 40, alignItems: 'center',
-                borderWidth: 3, borderColor: 'rgba(255,240,180,0.6)',
-                shadowColor: cfg.stageColor,
-                shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.7, shadowRadius: 20, elevation: 16,
-              }}
-            >
-              <Text style={{ color: '#fff', fontSize: 28, fontWeight: '900',
-                textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 }}>
-                ステージ {nextStage}
+            <Text style={{ fontSize: 11, color: 'rgba(200,180,255,0.6)', letterSpacing: 3, marginTop: 2 }}>
+              ✦ LIQUID PUZZLE ✦
+            </Text>
+            {clearedStages.size > 0 && (
+              <Text style={{ fontSize: 12, color: 'rgba(220,200,255,0.5)', marginTop: 8 }}>
+                {clearedStages.size} / {TOTAL_STAGES} ステージクリア
               </Text>
-              <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '700', letterSpacing: 2, marginTop: 2 }}>
-                {cfg.bandName}  ·  {hearts.count > 0 ? `❤️ × ${hearts.count}` : 'ハートなし'}
-              </Text>
-            </TouchableOpacity>
-          </Animated.View>
+            )}
+          </View>
 
-          {/* ── Weekly Missions button ── */}
+          {/* Band sections */}
+          {BANDS.map(band => {
+            const stages = Array.from({ length: band.end - band.start + 1 }, (_, i) => band.start + i);
+            return (
+              <View key={band.name} style={{ marginBottom: 20 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <View style={{ flex: 1, height: 1, backgroundColor: `${band.color}50` }} />
+                  <Text style={{ fontSize: 10, fontWeight: '900', color: band.color, letterSpacing: 3 }}>{band.name}</Text>
+                  <View style={{ flex: 1, height: 1, backgroundColor: `${band.color}50` }} />
+                </View>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {stages.map(num => {
+                    const isCleared = clearedStages.has(num);
+                    const isCurrent = num === nextStage;
+                    const isLocked  = num > nextStage;
+                    const stars     = stageStars[num] ?? 0;
+                    return (
+                      <StageCell
+                        key={num}
+                        num={num}
+                        stars={stars}
+                        isCleared={isCleared}
+                        isCurrent={isCurrent}
+                        isLocked={isLocked}
+                        bandColor={band.color}
+                        cellSize={cellSize}
+                        onPress={() => handleCellPress(num)}
+                      />
+                    );
+                  })}
+                </View>
+              </View>
+            );
+          })}
+
+          {/* ── Daily Challenge ── */}
+          <TouchableOpacity
+            onPress={() => {
+              if (hearts.count <= 0) { setNoHearts(true); return; }
+              onPlayChallenge(challenge);
+            }}
+            activeOpacity={0.82}
+            style={{
+              marginBottom: 10,
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+              paddingVertical: 14, borderRadius: 28,
+              backgroundColor: challengeDone ? 'rgba(39,199,87,0.18)' : 'rgba(20,10,50,0.85)',
+              borderWidth: 1.5,
+              borderColor: challengeDone ? '#27C757' : 'rgba(245,197,24,0.55)',
+              shadowColor: challengeDone ? '#27C757' : '#F5C518',
+              shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
+            }}
+          >
+            <Text style={{ fontSize: 22 }}>{challengeDone ? '✅' : '🧪'}</Text>
+            <View>
+              <Text style={{ color: challengeDone ? '#27C757' : '#F5C518', fontSize: 13, fontWeight: '800', letterSpacing: 1 }}>
+                {challengeDone ? "TODAY'S CHALLENGE DONE!" : "TODAY'S CHALLENGE"}
+              </Text>
+              <Text style={{ color: 'rgba(200,180,255,0.7)', fontSize: 11, marginTop: 1 }}>
+                {challengeDone ? 'また明日！' : 'クリアで🪙×2ボーナス！'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* ── Weekly Missions ── */}
           {(() => {
             const claimable = weekly && WEEKLY_MISSIONS.some(m => {
               const p = weekly.progress[m.id];
@@ -1667,7 +1700,6 @@ function StageSelect({ clearedStages, hearts, coins, challengeDone, weekly, onPl
                 onPress={onShowMissions}
                 activeOpacity={0.82}
                 style={{
-                  marginTop: 10,
                   flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
                   paddingVertical: 12, borderRadius: 24,
                   backgroundColor: claimable ? 'rgba(245,197,24,0.18)' : 'rgba(20,10,50,0.75)',
@@ -1687,39 +1719,10 @@ function StageSelect({ clearedStages, hearts, coins, challengeDone, weekly, onPl
               </TouchableOpacity>
             );
           })()}
-
-          {/* ── Daily Challenge button ── */}
-          <TouchableOpacity
-            onPress={() => {
-              if (hearts.count <= 0) { setNoHearts(true); return; }
-              onPlayChallenge(challenge);
-            }}
-            activeOpacity={0.82}
-            style={{
-              marginTop: 12,
-              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-              paddingVertical: 14, borderRadius: 28,
-              backgroundColor: challengeDone ? 'rgba(39,199,87,0.18)' : 'rgba(20,10,50,0.85)',
-              borderWidth: 1.5,
-              borderColor: challengeDone ? '#27C757' : 'rgba(245,197,24,0.55)',
-              shadowColor: challengeDone ? '#27C757' : '#F5C518',
-              shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
-            }}
-          >
-            <Text style={{ fontSize: 22 }}>{challengeDone ? '✅' : '🧪'}</Text>
-            <View>
-              <Text style={{ color: challengeDone ? '#27C757' : '#F5C518', fontSize: 13, fontWeight: '800', letterSpacing: 1 }}>
-                {challengeDone ? 'TODAY\'S CHALLENGE DONE!' : 'TODAY\'S CHALLENGE'}
-              </Text>
-              <Text style={{ color: 'rgba(200,180,255,0.7)', fontSize: 11, marginTop: 1 }}>
-                {challengeDone ? 'また明日！' : `クリアで🪙×2ボーナス！`}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        </View>
+        </ScrollView>
 
         {/* ── Banner Ad ── */}
-        <View style={{ alignItems: 'center', marginTop: 10 }}>
+        <View style={{ alignItems: 'center' }}>
           <BannerAd
             unitId={AD_IDS.banner}
             size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
@@ -1736,56 +1739,43 @@ function StageSelect({ clearedStages, hearts, coins, challengeDone, weekly, onPl
                 <Text style={[s.winTitle, { fontSize: 22 }]}>
                   {noHearts ? 'ハートがありません' : 'ハートショップ'}
                 </Text>
-
-                {/* Coin balance */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
                   backgroundColor: 'rgba(245,197,24,0.12)', paddingHorizontal: 16, paddingVertical: 8,
                   borderRadius: 16, borderWidth: 1, borderColor: 'rgba(245,197,24,0.35)' }}>
                   <Text style={{ fontSize: 18 }}>🪙</Text>
                   <Text style={{ fontSize: 18, fontWeight: '900', color: '#F5C518' }}>{coins} コイン</Text>
                 </View>
-
-                {/* 1 heart for 30 coins */}
                 <TouchableOpacity
                   style={[s.nextBtn, { backgroundColor: coins >= HEART_COIN_COST ? '#8B30E8' : '#AAA' }]}
-                  onPress={() => buyHeart(1, HEART_COIN_COST)}
+                  onPress={() => { if (coins < HEART_COIN_COST) return; onSpendCoins(HEART_COIN_COST); onAddHearts(1); setShopOpen(false); setNoHearts(false); }}
                   disabled={coins < HEART_COIN_COST}
                 >
                   <Text style={s.nextBtnTxt}>🪙 {HEART_COIN_COST}コイン → ❤️ × 1</Text>
                 </TouchableOpacity>
-
-                {/* Full refill for 100 coins */}
                 <TouchableOpacity
                   style={[s.nextBtn, { backgroundColor: coins >= REFILL_COIN_COST ? '#2F7BF0' : '#AAA' }]}
-                  onPress={() => buyHeart(MAX_HEARTS - hearts.count, REFILL_COIN_COST)}
+                  onPress={() => { if (coins < REFILL_COIN_COST || hearts.count >= MAX_HEARTS) return; onSpendCoins(REFILL_COIN_COST); onAddHearts(MAX_HEARTS - hearts.count); setShopOpen(false); setNoHearts(false); }}
                   disabled={coins < REFILL_COIN_COST || hearts.count >= MAX_HEARTS}
                 >
                   <Text style={s.nextBtnTxt}>🪙 {REFILL_COIN_COST}コイン → ❤️ 全回復</Text>
                 </TouchableOpacity>
-
-                {/* Watch ad */}
                 <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#E84343' }]}
                   onPress={() => { setNoHearts(false); setShopOpen(false); showRewarded(() => onAddHearts(3)); }}>
                   <Text style={s.nextBtnTxt}>📺 広告を見て❤️ × 3もらう</Text>
                 </TouchableOpacity>
-
-                {/* Divider */}
                 <View style={{ width: '100%', height: 1, backgroundColor: 'rgba(255,255,255,0.12)', marginVertical: 4 }} />
-
-                {/* Coin packs (IAP) */}
                 <Text style={{ fontSize: 11, color: GREY, fontWeight: '700', letterSpacing: 1 }}>💎 コインを購入</Text>
                 {COIN_PACKS.map(pack => (
                   <TouchableOpacity
                     key={pack.id}
                     style={[s.nextBtn, { backgroundColor: '#4A5AAD', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}
-                    onPress={() => Alert.alert('💎 コイン購入', `¥${pack.label.replace('¥','')} で 🪙×${pack.coins} を購入しますか？\n\n※ Google Play Console で商品を設定後にご利用いただけます。`, [{ text: 'OK' }])}
+                    onPress={() => Alert.alert('💎 コイン購入', `${pack.label} で 🪙×${pack.coins} を購入しますか？\n\n※ Google Play Console で商品を設定後にご利用いただけます。`, [{ text: 'OK' }])}
                   >
                     <Text style={s.nextBtnTxt}>{pack.emoji} 🪙×{pack.coins}</Text>
                     {pack.badge && <Text style={{ fontSize: 10, color: '#F5C518', fontWeight: '800', marginRight: 4 }}>{pack.badge}</Text>}
                     <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', fontWeight: '700' }}>{pack.label}</Text>
                   </TouchableOpacity>
                 ))}
-
                 <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY }]}
                   onPress={() => { setNoHearts(false); setShopOpen(false); }}>
                   <Text style={s.nextBtnTxt}>閉じる</Text>
@@ -1819,6 +1809,7 @@ export default function App() {
   const [colorblind, setColorblind]       = useState(false);
   const [showSettings, setShowSettings]   = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
+  const [stageStars, setStageStars]       = useState({});
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -1835,7 +1826,8 @@ export default function App() {
       AsyncStorage.getItem(WEEKLY_KEY),
       AsyncStorage.getItem(BGM_KEY),
       AsyncStorage.getItem(COLORBLIND_KEY),
-    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawCb]) => {
+      AsyncStorage.getItem(STARS_KEY),
+    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawCb, rawSt]) => {
       if (rawP) setClearedStages(new Set(JSON.parse(rawP)));
       if (rawI) setItems(JSON.parse(rawI));
       if (!rawT) setTutorialDone(false);
@@ -1876,6 +1868,7 @@ export default function App() {
       setBgmOn(bgmSaved);
       setBGMEnabled(bgmSaved);
       if (rawCb === '1') setColorblind(true);
+      if (rawSt) setStageStars(JSON.parse(rawSt));
     }).catch(() => {});
     initSounds().then(() => playBGM());
     loadRewarded();
@@ -1967,6 +1960,14 @@ export default function App() {
       AsyncStorage.setItem(COINS_KEY, String(next)).catch(() => {});
       return next;
     });
+    if (!isChallenge && stageNum > 0) {
+      setStageStars(prev => {
+        if ((prev[stageNum] ?? 0) >= stars) return prev;
+        const next = { ...prev, [stageNum]: stars };
+        AsyncStorage.setItem(STARS_KEY, JSON.stringify(next)).catch(() => {});
+        return next;
+      });
+    }
     if (stageNum === REVIEW_STAGE) {
       AsyncStorage.getItem(REVIEW_KEY).then(raw => {
         if (!raw) setShowReview(true);
@@ -2099,6 +2100,7 @@ export default function App() {
     <>
       <StageSelect
         clearedStages={clearedStages}
+        stageStars={stageStars}
         hearts={hearts}
         coins={coins}
         challengeDone={challengeDone}
