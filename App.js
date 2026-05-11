@@ -1579,42 +1579,105 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
   );
 }
 
-// ── Stage Cell ─────────────────────────────────────────────
-function StageCell({ num, stars, isCleared, isCurrent, isLocked, bandColor, cellSize, onPress }) {
+// ── Stage Map Layout ───────────────────────────────────────
+const MAP_STEP     = 96;
+const MAP_LABEL_H  = 42;
+const MAP_PIPE_X   = SW / 2;
+const MAP_CARD_W   = Math.min(158, Math.floor((SW - 80) / 2));
+const MAP_CONN_W   = Math.max(8,  Math.floor(SW / 2 - 15 - MAP_CARD_W));
+
+function buildMapLayout() {
+  const items = [], yPos = {};
+  let y = 0;
+  for (let num = TOTAL_STAGES; num >= 1; num--) {
+    if (num % 10 === 0) {
+      const bandIdx = Math.min(Math.floor((num - 1) / 10), BANDS.length - 1);
+      items.push({ type: 'label', band: BANDS[bandIdx], y, h: MAP_LABEL_H });
+      y += MAP_LABEL_H;
+    }
+    const side = (TOTAL_STAGES - num) % 2 === 0 ? 'right' : 'left';
+    yPos[num] = y;
+    items.push({ type: 'stage', num, y, h: MAP_STEP, side });
+    y += MAP_STEP;
+  }
+  return { items, yPos, totalH: y };
+}
+const MAP_LAYOUT = buildMapLayout();
+
+// ── Stage Map Node ─────────────────────────────────────────
+function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandColor, bandName, onPress }) {
   const scale = useRef(new Animated.Value(1)).current;
   function handlePress() {
+    if (isLocked) return;
     Animated.sequence([
-      Animated.timing(scale, { toValue: 0.88, duration: 80, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 0.91, duration: 90, useNativeDriver: true }),
       Animated.spring(scale, { toValue: 1, friction: 4, useNativeDriver: true }),
-    ]).start(() => { if (!isLocked) onPress(); });
+    ]).start(() => onPress());
   }
+  const DOT_R    = isCurrent ? 16 : 11;
+  const cardLeft = side === 'left' ? 12 : SW - 12 - MAP_CARD_W;
+  const connLeft = side === 'left' ? 12 + MAP_CARD_W : MAP_PIPE_X + 3;
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
-      <TouchableOpacity onPress={handlePress} activeOpacity={0.85} style={{
-        width: cellSize, height: cellSize, borderRadius: 14,
-        alignItems: 'center', justifyContent: 'center',
-        backgroundColor: isCurrent ? bandColor : isCleared ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.03)',
-        borderWidth: 1.5,
-        borderColor: isCurrent ? 'rgba(255,240,180,0.6)' : isCleared ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.06)',
+    <View style={{ height: MAP_STEP, width: '100%' }}>
+      {/* Connector card→pipe */}
+      <View style={{
+        position: 'absolute', left: connLeft,
+        top: MAP_STEP / 2 - 1.5, width: MAP_CONN_W, height: 3, borderRadius: 2,
+        backgroundColor: isCleared ? `${bandColor}70` : isCurrent ? `${bandColor}55` : 'rgba(255,255,255,0.09)',
+      }} />
+      {/* Pipe dot */}
+      <View style={{
+        position: 'absolute',
+        left: MAP_PIPE_X - DOT_R, top: MAP_STEP / 2 - DOT_R,
+        width: DOT_R * 2, height: DOT_R * 2, borderRadius: DOT_R,
+        backgroundColor: isCurrent ? bandColor : isCleared ? '#5A18B0' : 'rgba(18,8,45,0.96)',
+        borderWidth: isCurrent ? 3 : 1.5,
+        borderColor: isCurrent ? 'rgba(255,240,180,0.9)' : isCleared ? `${bandColor}80` : 'rgba(255,255,255,0.13)',
+        zIndex: 5, alignItems: 'center', justifyContent: 'center',
         shadowColor: isCurrent ? bandColor : 'transparent',
-        shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.7, shadowRadius: 10, elevation: isCurrent ? 10 : 0,
+        shadowOffset: { width: 0, height: 0 }, shadowOpacity: 1, shadowRadius: 12, elevation: 10,
       }}>
-        {isLocked ? (
-          <Text style={{ fontSize: 16, opacity: 0.22 }}>🔒</Text>
-        ) : (
-          <>
-            <Text style={{ fontSize: num >= 10 ? 14 : 16, fontWeight: '900', color: isCurrent ? '#fff' : '#E8D8A0' }}>
-              {num}
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 1, marginTop: 2 }}>
-              {[1,2,3].map(s => (
-                <Text key={s} style={{ fontSize: 8, color: s <= stars ? '#F5C518' : 'rgba(255,255,255,0.12)' }}>★</Text>
-              ))}
+        {isCurrent && <Text style={{ fontSize: 9, fontWeight: '900', color: '#fff' }}>{num}</Text>}
+      </View>
+      {/* Stage card */}
+      <Animated.View style={{
+        position: 'absolute', left: cardLeft,
+        top: MAP_STEP / 2 - 29, width: MAP_CARD_W, height: 58,
+        transform: [{ scale }],
+      }}>
+        <TouchableOpacity onPress={handlePress} activeOpacity={0.82} style={{
+          flex: 1, borderRadius: 16,
+          backgroundColor: isCurrent ? bandColor : isCleared ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.04)',
+          borderWidth: 1.5,
+          borderColor: isCurrent ? 'rgba(255,240,180,0.65)' : isCleared ? 'rgba(255,255,255,0.20)' : 'rgba(255,255,255,0.06)',
+          alignItems: 'center', justifyContent: 'center',
+          shadowColor: isCurrent ? bandColor : 'transparent',
+          shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.8, shadowRadius: 14, elevation: isCurrent ? 14 : 0,
+          opacity: isLocked ? 0.32 : 1,
+        }}>
+          {isLocked ? (
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 18, lineHeight: 22 }}>🔒</Text>
+              <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 1 }}>{num}</Text>
             </View>
-          </>
-        )}
-      </TouchableOpacity>
-    </Animated.View>
+          ) : (
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 8, color: isCurrent ? 'rgba(255,255,255,0.75)' : bandColor, fontWeight: '900', letterSpacing: 1.5 }}>
+                {bandName}
+              </Text>
+              <Text style={{ fontSize: 22, fontWeight: '900', color: isCurrent ? '#fff' : '#E8D8A0', lineHeight: 28 }}>
+                {num}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 2 }}>
+                {[1,2,3].map(s => (
+                  <Text key={s} style={{ fontSize: 9, color: s <= stars ? '#F5C518' : 'rgba(255,255,255,0.13)' }}>★</Text>
+                ))}
+              </View>
+            </View>
+          )}
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -1628,23 +1691,28 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
   const [shopOpen, setShopOpen] = useState(false);
   const [noHearts, setNoHearts] = useState(false);
   const [timeLeft, setTimeLeft] = useState('');
-  const challenge  = getDailyChallengeConfig();
-  const STAGES_PER_ROW = 5;
-  const cellSize = Math.floor((SW - 40 - (STAGES_PER_ROW - 1) * 8) / STAGES_PER_ROW);
+  const scrollRef = useRef(null);
+  const challenge = getDailyChallengeConfig();
 
   useEffect(() => {
     if (hearts.count >= MAX_HEARTS || !hearts.nextRegenAt) { setTimeLeft(''); return; }
     const tick = () => {
       const ms = hearts.nextRegenAt - Date.now();
       if (ms <= 0) { setTimeLeft(''); return; }
-      const m   = Math.floor(ms / 60000);
-      const sec = Math.floor((ms % 60000) / 1000);
+      const m = Math.floor(ms / 60000), sec = Math.floor((ms % 60000) / 1000);
       setTimeLeft(`${m}:${String(sec).padStart(2, '0')}`);
     };
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [hearts]);
+
+  // Auto-scroll to current stage on mount
+  useEffect(() => {
+    const stageY = MAP_LAYOUT.yPos[Math.min(nextStage, TOTAL_STAGES)] ?? 0;
+    const targetY = stageY + MAP_STEP / 2 - SH * 0.44;
+    setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, targetY), animated: false }), 80);
+  }, []);
 
   function handleCellPress(num) {
     if (hearts.count <= 0) { setNoHearts(true); return; }
@@ -1660,7 +1728,7 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
 
   return (
     <ImageBackground source={require('./assets/background.png')} style={{ flex: 1 }} resizeMode="cover">
-      <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,2,14,0.38)' }} />
+      <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,2,14,0.42)' }} />
       <SafeAreaView style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
 
@@ -1668,10 +1736,10 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
         <View style={{
           flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
           paddingHorizontal: 14, paddingVertical: 10,
-          backgroundColor: 'rgba(10,6,30,0.72)',
+          backgroundColor: 'rgba(10,6,30,0.78)',
           borderBottomWidth: 1, borderBottomColor: 'rgba(180,140,55,0.3)',
         }}>
-          <View style={{ alignItems: 'center', minWidth: 42 }}>
+          <View style={{ alignItems: 'center', minWidth: 48 }}>
             <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.6)', letterSpacing: 2, fontWeight: '700' }}>STAGE</Text>
             <Text style={{ fontSize: 16, fontWeight: '900', color: '#E8D8A0' }}>
               {Math.min(nextStage, TOTAL_STAGES)}<Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.5)' }}>/{TOTAL_STAGES}</Text>
@@ -1700,130 +1768,132 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
           <TouchableOpacity onPress={() => setShopOpen(true)} style={iconBtn}><Text style={{ fontSize: 18 }}>🏪</Text></TouchableOpacity>
         </View>
 
-        {/* ── Stage Map ── */}
-        <ScrollView
-          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 24 }}
-          showsVerticalScrollIndicator={false}
-        >
+        {/* ── Vertical stage map ── */}
+        <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
+
           {/* Title */}
-          <View style={{ alignItems: 'center', marginBottom: 16 }}>
-            <Text style={{ fontSize: 32, fontWeight: '900', letterSpacing: 4, color: '#E8D08A',
-              textShadowColor: 'rgba(200,100,255,0.9)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 18 }}>
+          <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+            <Text style={{ fontSize: 28, fontWeight: '900', letterSpacing: 4, color: '#E8D08A',
+              textShadowColor: 'rgba(200,100,255,0.9)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 16 }}>
               POTION SORT
             </Text>
-            <Text style={{ fontSize: 11, color: 'rgba(200,180,255,0.6)', letterSpacing: 3, marginTop: 2 }}>
-              ✦ LIQUID PUZZLE ✦
-            </Text>
+            <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.6)', letterSpacing: 3, marginTop: 3 }}>✦ LIQUID PUZZLE ✦</Text>
             {clearedStages.size > 0 && (
-              <Text style={{ fontSize: 12, color: 'rgba(220,200,255,0.5)', marginTop: 8 }}>
+              <Text style={{ fontSize: 11, color: 'rgba(220,200,255,0.5)', marginTop: 6 }}>
                 {clearedStages.size} / {TOTAL_STAGES} ステージクリア
               </Text>
             )}
           </View>
 
-          {/* Band sections */}
-          {BANDS.map(band => {
-            const stages = Array.from({ length: band.end - band.start + 1 }, (_, i) => band.start + i);
-            return (
-              <View key={band.name} style={{ marginBottom: 20 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <View style={{ flex: 1, height: 1, backgroundColor: `${band.color}50` }} />
-                  <Text style={{ fontSize: 10, fontWeight: '900', color: band.color, letterSpacing: 3 }}>{band.name}</Text>
-                  <View style={{ flex: 1, height: 1, backgroundColor: `${band.color}50` }} />
-                </View>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {stages.map(num => {
-                    const isCleared = clearedStages.has(num);
-                    const isCurrent = num === nextStage;
-                    const isLocked  = num > nextStage;
-                    const stars     = stageStars[num] ?? 0;
-                    return (
-                      <StageCell
-                        key={num}
-                        num={num}
-                        stars={stars}
-                        isCleared={isCleared}
-                        isCurrent={isCurrent}
-                        isLocked={isLocked}
-                        bandColor={band.color}
-                        cellSize={cellSize}
-                        onPress={() => handleCellPress(num)}
-                      />
-                    );
-                  })}
-                </View>
-              </View>
-            );
-          })}
-
-          {/* ── Daily Challenge ── */}
-          <TouchableOpacity
-            onPress={() => {
-              if (hearts.count <= 0) { setNoHearts(true); return; }
-              onPlayChallenge(challenge);
-            }}
-            activeOpacity={0.82}
-            style={{
-              marginBottom: 10,
-              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-              paddingVertical: 14, borderRadius: 28,
-              backgroundColor: challengeDone ? 'rgba(39,199,87,0.18)' : 'rgba(20,10,50,0.85)',
-              borderWidth: 1.5,
-              borderColor: challengeDone ? '#27C757' : 'rgba(245,197,24,0.55)',
-              shadowColor: challengeDone ? '#27C757' : '#F5C518',
-              shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
-            }}
-          >
-            <Text style={{ fontSize: 22 }}>{challengeDone ? '✅' : '🧪'}</Text>
-            <View>
-              <Text style={{ color: challengeDone ? '#27C757' : '#F5C518', fontSize: 13, fontWeight: '800', letterSpacing: 1 }}>
-                {challengeDone ? "TODAY'S CHALLENGE DONE!" : "TODAY'S CHALLENGE"}
-              </Text>
-              <Text style={{ color: 'rgba(200,180,255,0.7)', fontSize: 11, marginTop: 1 }}>
-                {challengeDone ? 'また明日！' : 'クリアで🪙×2ボーナス！'}
-              </Text>
+          {/* Map with central pipe */}
+          <View style={{ position: 'relative' }}>
+            {/* Central pipe */}
+            <View style={{
+              position: 'absolute', left: MAP_PIPE_X - 4, top: 0, bottom: 0, width: 8,
+              backgroundColor: '#3A1272', overflow: 'hidden',
+            }}>
+              <View style={{ position: 'absolute', left: 1, top: 0, bottom: 0, width: 2, backgroundColor: 'rgba(180,120,255,0.30)' }} />
+              <View style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 2, backgroundColor: 'rgba(0,0,0,0.38)' }} />
             </View>
-          </TouchableOpacity>
 
-          {/* ── Weekly Missions ── */}
-          {(() => {
-            const claimable = weekly && WEEKLY_MISSIONS.some(m => {
-              const p = weekly.progress[m.id];
-              return p && p.current >= m.target && !p.claimed;
-            });
-            return (
-              <TouchableOpacity
-                onPress={onShowMissions}
-                activeOpacity={0.82}
-                style={{
+            {MAP_LAYOUT.items.map((item, idx) => {
+              if (item.type === 'label') {
+                return (
+                  <View key={`lbl-${item.band.name}`} style={{ height: MAP_LABEL_H, alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
+                    <View style={{
+                      paddingHorizontal: 18, paddingVertical: 5, borderRadius: 20,
+                      backgroundColor: `${item.band.color}22`, borderWidth: 1, borderColor: `${item.band.color}55`,
+                    }}>
+                      <Text style={{ fontSize: 10, fontWeight: '900', color: item.band.color, letterSpacing: 3 }}>
+                        {item.band.name}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              }
+              const { num, side } = item;
+              const band      = BANDS[Math.min(Math.floor((num - 1) / 10), BANDS.length - 1)];
+              const isCleared = clearedStages.has(num);
+              const isCurrent = num === nextStage;
+              const isLocked  = num > nextStage;
+              return (
+                <StageMapNode
+                  key={num}
+                  num={num}
+                  side={side}
+                  isCleared={isCleared}
+                  isCurrent={isCurrent}
+                  isLocked={isLocked}
+                  stars={stageStars[num] ?? 0}
+                  bandColor={band.color}
+                  bandName={band.name}
+                  onPress={() => handleCellPress(num)}
+                />
+              );
+            })}
+          </View>
+
+          {/* ── Special modes (bottom of map) ── */}
+          <View style={{ paddingHorizontal: 20, paddingTop: 28, gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+              <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.10)' }} />
+              <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.5)', letterSpacing: 2, fontWeight: '700' }}>SPECIAL</Text>
+              <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.10)' }} />
+            </View>
+
+            <TouchableOpacity
+              onPress={() => { if (hearts.count <= 0) { setNoHearts(true); return; } onPlayChallenge(challenge); }}
+              activeOpacity={0.82}
+              style={{
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+                paddingVertical: 14, borderRadius: 28,
+                backgroundColor: challengeDone ? 'rgba(39,199,87,0.18)' : 'rgba(20,10,50,0.85)',
+                borderWidth: 1.5, borderColor: challengeDone ? '#27C757' : 'rgba(245,197,24,0.55)',
+                shadowColor: challengeDone ? '#27C757' : '#F5C518',
+                shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
+              }}
+            >
+              <Text style={{ fontSize: 22 }}>{challengeDone ? '✅' : '🧪'}</Text>
+              <View>
+                <Text style={{ color: challengeDone ? '#27C757' : '#F5C518', fontSize: 13, fontWeight: '800', letterSpacing: 1 }}>
+                  {challengeDone ? "TODAY'S CHALLENGE DONE!" : "TODAY'S CHALLENGE"}
+                </Text>
+                <Text style={{ color: 'rgba(200,180,255,0.7)', fontSize: 11, marginTop: 1 }}>
+                  {challengeDone ? 'また明日！' : 'クリアで🪙×2ボーナス！'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {(() => {
+              const claimable = weekly && WEEKLY_MISSIONS.some(m => {
+                const p = weekly.progress[m.id];
+                return p && p.current >= m.target && !p.claimed;
+              });
+              return (
+                <TouchableOpacity onPress={onShowMissions} activeOpacity={0.82} style={{
                   flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
                   paddingVertical: 12, borderRadius: 24,
                   backgroundColor: claimable ? 'rgba(245,197,24,0.18)' : 'rgba(20,10,50,0.75)',
-                  borderWidth: 1.5,
-                  borderColor: claimable ? '#F5C518' : 'rgba(100,100,180,0.4)',
-                }}
-              >
-                <Text style={{ fontSize: 20 }}>📋</Text>
-                <View>
-                  <Text style={{ color: claimable ? '#F5C518' : '#E8D8A0', fontSize: 13, fontWeight: '800', letterSpacing: 1 }}>
-                    WEEKLY MISSIONS
-                  </Text>
-                  <Text style={{ color: 'rgba(200,180,255,0.65)', fontSize: 11, marginTop: 1 }}>
-                    {claimable ? '🎁 報酬が受け取れます！' : `${WEEKLY_MISSIONS.filter(m => weekly?.progress[m.id]?.claimed).length}/${WEEKLY_MISSIONS.length} 達成`}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })()}
+                  borderWidth: 1.5, borderColor: claimable ? '#F5C518' : 'rgba(100,100,180,0.4)',
+                }}>
+                  <Text style={{ fontSize: 20 }}>📋</Text>
+                  <View>
+                    <Text style={{ color: claimable ? '#F5C518' : '#E8D8A0', fontSize: 13, fontWeight: '800', letterSpacing: 1 }}>
+                      WEEKLY MISSIONS
+                    </Text>
+                    <Text style={{ color: 'rgba(200,180,255,0.65)', fontSize: 11, marginTop: 1 }}>
+                      {claimable ? '🎁 報酬が受け取れます！' : `${WEEKLY_MISSIONS.filter(m => weekly?.progress[m.id]?.claimed).length}/${WEEKLY_MISSIONS.length} 達成`}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })()}
+          </View>
         </ScrollView>
 
         {/* ── Banner Ad ── */}
         <View style={{ alignItems: 'center' }}>
-          <BannerAd
-            unitId={AD_IDS.banner}
-            size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-            requestOptions={{ requestNonPersonalizedAdsOnly: true }}
-          />
+          <BannerAd unitId={AD_IDS.banner} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} requestOptions={{ requestNonPersonalizedAdsOnly: true }} />
         </View>
 
         {/* ── Heart Shop modal ── */}
@@ -1832,9 +1902,7 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
             <View style={s.overlay}>
               <View style={[s.winCard, { gap: 10 }]}>
                 <Text style={{ fontSize: 44 }}>{noHearts ? '💔' : '🏪'}</Text>
-                <Text style={[s.winTitle, { fontSize: 22 }]}>
-                  {noHearts ? 'ハートがありません' : 'ハートショップ'}
-                </Text>
+                <Text style={[s.winTitle, { fontSize: 22 }]}>{noHearts ? 'ハートがありません' : 'ハートショップ'}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
                   backgroundColor: 'rgba(245,197,24,0.12)', paddingHorizontal: 16, paddingVertical: 8,
                   borderRadius: 16, borderWidth: 1, borderColor: 'rgba(245,197,24,0.35)' }}>
@@ -1844,15 +1912,13 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
                 <TouchableOpacity
                   style={[s.nextBtn, { backgroundColor: coins >= HEART_COIN_COST ? '#8B30E8' : '#AAA' }]}
                   onPress={() => { if (coins < HEART_COIN_COST) return; onSpendCoins(HEART_COIN_COST); onAddHearts(1); setShopOpen(false); setNoHearts(false); }}
-                  disabled={coins < HEART_COIN_COST}
-                >
+                  disabled={coins < HEART_COIN_COST}>
                   <Text style={s.nextBtnTxt}>🪙 {HEART_COIN_COST}コイン → ❤️ × 1</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[s.nextBtn, { backgroundColor: coins >= REFILL_COIN_COST ? '#2F7BF0' : '#AAA' }]}
                   onPress={() => { if (coins < REFILL_COIN_COST || hearts.count >= MAX_HEARTS) return; onSpendCoins(REFILL_COIN_COST); onAddHearts(MAX_HEARTS - hearts.count); setShopOpen(false); setNoHearts(false); }}
-                  disabled={coins < REFILL_COIN_COST || hearts.count >= MAX_HEARTS}
-                >
+                  disabled={coins < REFILL_COIN_COST || hearts.count >= MAX_HEARTS}>
                   <Text style={s.nextBtnTxt}>🪙 {REFILL_COIN_COST}コイン → ❤️ 全回復</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#E84343' }]}
@@ -1862,11 +1928,9 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
                 <View style={{ width: '100%', height: 1, backgroundColor: 'rgba(255,255,255,0.12)', marginVertical: 4 }} />
                 <Text style={{ fontSize: 11, color: GREY, fontWeight: '700', letterSpacing: 1 }}>💎 コインを購入</Text>
                 {COIN_PACKS.map(pack => (
-                  <TouchableOpacity
-                    key={pack.id}
+                  <TouchableOpacity key={pack.id}
                     style={[s.nextBtn, { backgroundColor: '#4A5AAD', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}
-                    onPress={() => Alert.alert('💎 コイン購入', `${pack.label} で 🪙×${pack.coins} を購入しますか？\n\n※ Google Play Console で商品を設定後にご利用いただけます。`, [{ text: 'OK' }])}
-                  >
+                    onPress={() => Alert.alert('💎 コイン購入', `${pack.label} で 🪙×${pack.coins} を購入しますか？\n\n※ Google Play Console で商品を設定後にご利用いただけます。`, [{ text: 'OK' }])}>
                     <Text style={s.nextBtnTxt}>{pack.emoji} 🪙×{pack.coins}</Text>
                     {pack.badge && <Text style={{ fontSize: 10, color: '#F5C518', fontWeight: '800', marginRight: 4 }}>{pack.badge}</Text>}
                     <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', fontWeight: '700' }}>{pack.label}</Text>
