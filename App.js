@@ -35,10 +35,10 @@ const TIERS = [
   { colors: 7, cap: 4, empty: 2 },  // 16-20
   { colors: 7, cap: 5, empty: 2 },  // 21-25
   { colors: 8, cap: 5, empty: 2 },  // 26-30
-  { colors: 8, cap: 5, empty: 1 },  // 31-35
-  { colors: 9, cap: 5, empty: 1 },  // 36-40
-  { colors: 9, cap: 5, empty: 1 },  // 41-45
-  { colors: 10, cap: 5, empty: 1 }, // 46+
+  { colors: 9,  cap: 5, empty: 2 },  // 31-35
+  { colors: 10, cap: 5, empty: 2 },  // 36-40
+  { colors: 10, cap: 5, empty: 2 },  // 41-45
+  { colors: 10, cap: 5, empty: 2 },  // 46+
 ];
 
 const BANDS = [
@@ -142,27 +142,33 @@ function seededRand(seed) {
 }
 
 // ── Level Generator ────────────────────────────────────────
+// 完成状態から逆方向にランダム移動してスクランブル → 必ず解ける配置を保証
 function makeLevel(numColors, cap, numEmpty, seed) {
   const rand = seededRand(seed);
+  const N = numColors + numEmpty;
 
-  const balls = [];
-  for (let c = 0; c < numColors; c++)
-    for (let i = 0; i < cap; i++) balls.push(c);
-
-  for (let i = balls.length - 1; i > 0; i--) {
-    const j = (rand() * (i + 1)) | 0;
-    [balls[i], balls[j]] = [balls[j], balls[i]];
-  }
-
+  // 完成状態からスタート
   const tubes = [];
-  for (let i = 0; i < numColors; i++)
-    tubes.push(balls.slice(i * cap, (i + 1) * cap));
+  for (let c = 0; c < numColors; c++) tubes.push(Array(cap).fill(c));
   for (let i = 0; i < numEmpty; i++) tubes.push([]);
 
-  for (let i = tubes.length - 1; i > 0; i--) {
-    const j = (rand() * (i + 1)) | 0;
-    [tubes[i], tubes[j]] = [tubes[j], tubes[i]];
+  // ランダムに移動してシャッフル（手数の10倍以上で十分混ざる）
+  const steps = numColors * cap * 12;
+  for (let s = 0; s < steps; s++) {
+    const froms = [];
+    for (let i = 0; i < N; i++) if (tubes[i].length > 0) froms.push(i);
+    const fi = froms[(rand() * froms.length) | 0];
+
+    const tos = [];
+    for (let i = 0; i < N; i++) {
+      if (i !== fi && tubes[i].length < cap) tos.push(i);
+    }
+    if (tos.length === 0) continue;
+    const ti = tos[(rand() * tos.length) | 0];
+
+    tubes[ti].push(tubes[fi].pop());
   }
+
   return tubes;
 }
 
@@ -175,6 +181,18 @@ function Tube({ balls, cap, selected, tubeW, tubeH, stageColor,
   const segH = tubeH / cap;
   const bw   = selected ? 2.5 : 1.5;
   const spec = Math.max(3, tubeW * 0.075);
+
+  const meniscusAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(meniscusAnim, { toValue: 1, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(meniscusAnim, { toValue: 0, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
 
   // Draining balls are hidden from normal render; replaced by animated overlay
   const visibleBalls = (isDraining && drainCnt > 0)
@@ -327,14 +345,17 @@ function Tube({ balls, cap, selected, tubeW, tubeH, stageColor,
             </Animated.View>
           )}
 
-          {/* Meniscus curve on top of visible liquid */}
+          {/* Meniscus curve on top of visible liquid — bobs gently */}
           {visibleBalls.length > 0 && !isDraining && !isFilling && (
-            <View style={{
+            <Animated.View style={{
               position: 'absolute',
               bottom: segH * visibleBalls.length - segH * 0.19,
               left: 0, right: 0, height: segH * 0.19,
               backgroundColor: 'rgba(255,255,255,0.26)',
               borderTopLeftRadius: 12, borderTopRightRadius: 12,
+              transform: [{ translateY: meniscusAnim.interpolate({
+                inputRange: [0, 1], outputRange: [0, -segH * 0.06],
+              }) }],
             }} />
           )}
 
@@ -775,7 +796,7 @@ const SPARKLE_EMOJIS = ['⭐','✨','💫','🌟','⚡','💛','🔆','🌠'];
 
 function WinOverlay({ moves, stage, stageColor, coinsEarned, onNext, onReplay }) {
   const cfg      = getStageConfig(stage);
-  const optMoves = cfg.colors * 4;
+  const optMoves = Math.round(cfg.colors * cfg.cap * 0.85);
   const stars    = moves <= optMoves ? 3 : moves <= optMoves * 1.7 ? 2 : 1;
   const scale    = useRef(new Animated.Value(0.5)).current;
   const coinAnim = useRef(new Animated.Value(0)).current;
@@ -787,6 +808,20 @@ function WinOverlay({ moves, stage, stageColor, coinsEarned, onNext, onReplay })
     x: new Animated.Value(0), y: new Animated.Value(0),
     op: new Animated.Value(0), sc: new Animated.Value(0),
   }))).current;
+
+  const CONF_COUNT = 28;
+  const confetti = useRef(
+    Array.from({ length: CONF_COUNT }, (_, i) => ({
+      x:     new Animated.Value((i / CONF_COUNT - 0.5) * SW * 1.3),
+      y:     new Animated.Value(-30 - (i % 5) * 22),
+      rot:   new Animated.Value(0),
+      color: PALETTE[i % PALETTE.length],
+      w:     6 + (i % 3) * 3,
+      h:     3 + (i % 2) * 4,
+      delay: i * 45,
+      dur:   1700 + (i % 6) * 180,
+    }))
+  ).current;
 
   useEffect(() => {
     // Card in
@@ -825,11 +860,39 @@ function WinOverlay({ moves, stage, stageColor, coinsEarned, onNext, onReplay })
       ]).start();
     });
 
+    // Confetti fall
+    confetti.forEach((p) => {
+      Animated.sequence([
+        Animated.delay(p.delay),
+        Animated.parallel([
+          Animated.timing(p.y,   { toValue: SH + 60,  duration: p.dur, easing: Easing.linear, useNativeDriver: true }),
+          Animated.timing(p.rot, { toValue: 4,         duration: p.dur, easing: Easing.linear, useNativeDriver: true }),
+        ]),
+      ]).start();
+    });
+
     return () => coinAnim.removeListener(id);
   }, []);
 
   return (
     <View style={s.overlay}>
+      {/* Confetti */}
+      <View style={{ ...StyleSheet.absoluteFillObject, overflow: 'hidden', pointerEvents: 'none' }}>
+        {confetti.map((p, i) => (
+          <Animated.View key={`cf${i}`} style={{
+            position: 'absolute', top: 0, left: '50%',
+            width: p.w, height: p.h,
+            backgroundColor: p.color,
+            borderRadius: 2,
+            opacity: 0.88,
+            transform: [
+              { translateX: p.x },
+              { translateY: p.y },
+              { rotate: p.rot.interpolate({ inputRange: [0, 4], outputRange: ['0deg', '720deg'] }) },
+            ],
+          }} />
+        ))}
+      </View>
       {/* Sparkle particles */}
       <View style={{ position: 'absolute', top: '38%', left: '50%' }}>
         {particles.map((p, i) => (
@@ -881,6 +944,93 @@ function WinOverlay({ moves, stage, stageColor, coinsEarned, onNext, onReplay })
       </Animated.View>
     </View>
   );
+}
+
+// ── BFS Solver（ヒント用：最短解の第1手を返す）──────────────
+function solveHint(tubes, cap) {
+  const encode = ts => ts.map(t => t.join(',')).join('|');
+  const isWon  = ts => ts.every(t => t.length === 0 || (t.length === cap && t.every(b => b === t[0])));
+
+  // ヒューリスティック：未整列のボール数（少ないほど解に近い）
+  const heuristic = ts => {
+    let h = 0;
+    for (const t of ts) {
+      if (t.length === 0) continue;
+      if (t.length === cap && t.every(b => b === t[0])) continue;
+      h += t.length;
+    }
+    return h;
+  };
+
+  const init = tubes.map(t => [...t]);
+  if (isWon(init)) return null;
+
+  // A*風 優先度付きキュー（配列ヒープ）
+  const heap = [];
+  const heapPush = (item) => {
+    heap.push(item);
+    let i = heap.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (heap[p].f <= heap[i].f) break;
+      [heap[p], heap[i]] = [heap[i], heap[p]];
+      i = p;
+    }
+  };
+  const heapPop = () => {
+    const top = heap[0];
+    const last = heap.pop();
+    if (heap.length) {
+      heap[0] = last;
+      let i = 0;
+      while (true) {
+        let s = i, l = 2*i+1, r = 2*i+2;
+        if (l < heap.length && heap[l].f < heap[s].f) s = l;
+        if (r < heap.length && heap[r].f < heap[s].f) s = r;
+        if (s === i) break;
+        [heap[i], heap[s]] = [heap[s], heap[i]];
+        i = s;
+      }
+    }
+    return top;
+  };
+
+  heapPush({ state: init, first: null, g: 0, f: heuristic(init) });
+  const seen = new Set([encode(init)]);
+  const MAX_ITER = 50000;
+  let iterations = 0;
+
+  while (heap.length && iterations++ < MAX_ITER) {
+    const { state, first, g } = heapPop();
+    const N = state.length;
+
+    for (let f = 0; f < N; f++) {
+      if (!state[f].length) continue;
+      const top = state[f].at(-1);
+      let cnt = 1;
+      while (cnt < state[f].length && state[f][state[f].length - 1 - cnt] === top) cnt++;
+
+      for (let t = 0; t < N; t++) {
+        if (t === f) continue;
+        if (state[t].length + cnt > cap) continue;
+        if (state[t].length && state[t].at(-1) !== top) continue;
+        if (!state[t].length && state[f].every(b => b === top)) continue;
+
+        const next = state.map(x => [...x]);
+        for (let i = 0; i < cnt; i++) next[t].push(next[f].pop());
+
+        const key = encode(next);
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        const move = first ?? { from: f, to: t };
+        if (isWon(next)) return move;
+        const ng = g + 1;
+        heapPush({ state: next, first: move, g: ng, f: ng + heuristic(next) });
+      }
+    }
+  }
+  return null;
 }
 
 // ── Deadlock Detector ──────────────────────────────────────
@@ -965,7 +1115,7 @@ function FloatingCheck({ x, y, color, onDone }) {
 }
 
 // ── Game Screen ────────────────────────────────────────────
-function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride, colorblindMode, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem }) {
+function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, challengeOverride, colorblindMode, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem, onConsumeHeart, onToggleSound, onToggleColorblind }) {
   const cfg = challengeOverride
     ? { colors: challengeOverride.colors, cap: challengeOverride.cap, empty: challengeOverride.empty, stageColor: '#8B30E8', bandName: 'DAILY' }
     : getStageConfig(stage);
@@ -1123,7 +1273,7 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
         playSound('error');
       } else if (justCompleted) {
-        playSound(`complete${Math.min(newCompleted, 8)}`);
+        playSound(`complete${Math.min(newCompleted, 9)}`);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
         // Find which specific tubes just completed → trigger glow + floating badge
         const newlyDoneIdxs = nt
@@ -1209,9 +1359,8 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
 
         Animated.sequence([
           Animated.delay(200),
-          Animated.timing(fillAnim, {
-            toValue: 1, duration: 220,
-            easing: Easing.out(Easing.cubic), useNativeDriver: true,
+          Animated.spring(fillAnim, {
+            toValue: 1, friction: 3.5, tension: 180, useNativeDriver: true,
           }),
         ]).start();
 
@@ -1292,26 +1441,40 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
   function handleHint() {
     if (won || isAnimating.current) return;
     if (items.hint <= 0) { setPurchaseType('hint'); return; }
-    for (let f = 0; f < tubes.length; f++) {
-      if (!tubes[f].length) continue;
-      const top = tubes[f].at(-1);
-      for (let t = 0; t < tubes.length; t++) {
-        if (t === f || tubes[t].length >= cap) continue;
-        if (tubes[t].length && tubes[t].at(-1) !== top) continue;
-        onUseItem('hint');
-        setHistory(h => [...h, tubes.map(x => [...x])]);
-        const nt = tubes.map(x => [...x]);
-        nt[t].push(nt[f].pop());
-        setTubes(nt);
-        setMoves(m => m + 1);
-        setSelected(null);
-        bounce(t);
-        if (checkWin(nt)) {
-          setWon(true);
-          onStageComplete?.(stage);
+
+    // BFS で最短解の第1手を探す。見つからなければグリーディーフォールバック
+    const move = solveHint(tubes, cap) ?? (() => {
+      for (let f = 0; f < tubes.length; f++) {
+        if (!tubes[f].length) continue;
+        const top = tubes[f].at(-1);
+        for (let t = 0; t < tubes.length; t++) {
+          if (t === f || tubes[t].length >= cap) continue;
+          if (tubes[t].length && tubes[t].at(-1) !== top) continue;
+          return { from: f, to: t };
         }
-        return;
       }
+      return null;
+    })();
+
+    if (move) {
+      const { from: f, to: t } = move;
+      const top = tubes[f].at(-1);
+      let cnt = 1;
+      while (cnt < tubes[f].length && tubes[f][tubes[f].length - 1 - cnt] === top) cnt++;
+      onUseItem('hint');
+      setHistory(h => [...h, tubes.map(x => [...x])]);
+      const nt = tubes.map(x => [...x]);
+      for (let i = 0; i < cnt; i++) nt[t].push(nt[f].pop());
+      setTubes(nt);
+      setMoves(m => m + 1);
+      setSelected(null);
+      bounce(t);
+      if (checkWin(nt)) {
+        setWon(true);
+        onStageComplete?.(stage);
+      }
+    } else {
+      Alert.alert('詰まっています', '↩ Undoで戻るか、🔄 リスタートを試してください。');
     }
   }
 
@@ -1337,6 +1500,18 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
   }
 
   function restartWithAd() {
+    if (!isChallenge && hearts && hearts.count <= 0) {
+      Alert.alert(
+        'ハートがありません 💔',
+        'ハートが回復するまでお待ちください。',
+        [
+          { text: 'ステージ選択へ', onPress: onBack },
+          { text: 'キャンセル', style: 'cancel' },
+        ]
+      );
+      return;
+    }
+    if (!isChallenge) onConsumeHeart?.();
     restartCountRef.current += 1;
     if (restartCountRef.current % 3 === 0) {
       showInterstitial(() => restart());
@@ -1365,15 +1540,20 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
         </TouchableOpacity>
         <View style={{ alignItems: 'center' }}>
           <Text style={[s.headerTitle, { color: '#E8D8A0' }]}>
-          {isChallenge ? 'DAILY CHALLENGE' : `ステージ ${stage}`}
-        </Text>
+            {isChallenge ? 'DAILY CHALLENGE' : `ステージ ${stage}`}
+          </Text>
           <Text style={{ fontSize: 11, color: stageColor, fontWeight: '700', letterSpacing: 1 }}>
             {bandName}
           </Text>
         </View>
-        <Text style={{ fontSize: 14, color: 'rgba(200,180,255,0.7)', minWidth: 44, textAlign: 'right', paddingRight: 8 }}>
-          {moves}手
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <TouchableOpacity onPress={onToggleSound} style={s.miniIconBtn}>
+            <Text style={{ fontSize: 16 }}>{bgmOn ? '🔊' : '🔇'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onToggleColorblind} style={s.miniIconBtn}>
+            <Text style={{ fontSize: 16 }}>{colorblindMode ? '👁' : '🎨'}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Item bar */}
@@ -1404,6 +1584,9 @@ function GameScreen({ stage, items, isFirstPlay, isChallenge, challengeOverride,
 
         <View style={{ flex: 1 }} />
 
+        <Text style={{ fontSize: 13, color: 'rgba(200,180,255,0.75)', fontWeight: '700', marginRight: 4 }}>
+          {moves}手
+        </Text>
         <TouchableOpacity style={[s.restartBtn, { backgroundColor: 'rgba(255,255,255,0.12)' }]} onPress={restartWithAd}>
           <Text style={s.restartBtnTxt}>🔄</Text>
         </TouchableOpacity>
@@ -1585,6 +1768,7 @@ const MAP_LABEL_H  = 42;
 const MAP_PIPE_X   = SW / 2;
 const MAP_CARD_W   = Math.min(158, Math.floor((SW - 80) / 2));
 const MAP_CONN_W   = Math.max(8,  Math.floor(SW / 2 - 15 - MAP_CARD_W));
+const TOTAL_STAGES = 50;
 
 function buildMapLayout() {
   const items = [], yPos = {};
@@ -1605,8 +1789,22 @@ function buildMapLayout() {
 const MAP_LAYOUT = buildMapLayout();
 
 // ── Stage Map Node ─────────────────────────────────────────
-function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandColor, bandName, onPress }) {
-  const scale = useRef(new Animated.Value(1)).current;
+function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandColor, bandName, onPress, animIndex }) {
+  const scale    = useRef(new Animated.Value(1)).current;
+  const slideX   = useRef(new Animated.Value(side === 'left' ? -70 : 70)).current;
+  const mountOp  = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const delay = Math.min((animIndex ?? 0) * 30, 600);
+    Animated.sequence([
+      Animated.delay(delay),
+      Animated.parallel([
+        Animated.spring(slideX,  { toValue: 0, friction: 6, tension: 80, useNativeDriver: true }),
+        Animated.timing(mountOp, { toValue: 1, duration: 220, useNativeDriver: true }),
+      ]),
+    ]).start();
+  }, []);
+
   function handlePress() {
     if (isLocked) return;
     Animated.sequence([
@@ -1643,7 +1841,8 @@ function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandCo
       <Animated.View style={{
         position: 'absolute', left: cardLeft,
         top: MAP_STEP / 2 - 29, width: MAP_CARD_W, height: 58,
-        transform: [{ scale }],
+        opacity: mountOp,
+        transform: [{ scale }, { translateX: slideX }],
       }}>
         <TouchableOpacity onPress={handlePress} activeOpacity={0.82} style={{
           flex: 1, borderRadius: 16,
@@ -1682,7 +1881,6 @@ function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandCo
 }
 
 // ── Stage Select Screen ────────────────────────────────────
-const TOTAL_STAGES = 50;
 const HEART_COIN_COST  = 30;
 const REFILL_COIN_COST = 100;
 
@@ -1828,6 +2026,7 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
                   bandColor={band.color}
                   bandName={band.name}
                   onPress={() => handleCellPress(num)}
+                  animIndex={idx}
                 />
               );
             })}
@@ -2252,6 +2451,11 @@ export default function App() {
           : handleStageComplete}
         onUseItem={handleUseItem}
         onBuyItem={handleBuyItem}
+        hearts={hearts}
+        onConsumeHeart={consumeHeart}
+        bgmOn={bgmOn}
+        onToggleSound={toggleBGM}
+        onToggleColorblind={toggleColorblind}
       />
     );
   }
@@ -2332,6 +2536,7 @@ const s = StyleSheet.create({
   screen:        { flex: 1, backgroundColor: BG },
   header:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E4E6F0' },
   iconBtn:       { padding: 8, minWidth: 44, alignItems: 'center' },
+  miniIconBtn:   { padding: 6, width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.10)' },
   iconTxt:       { fontSize: 24, color: DARK },
   headerTitle:   { fontSize: 20, fontWeight: '700', color: DARK },
   board:         { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20 },

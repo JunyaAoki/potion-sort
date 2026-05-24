@@ -9,7 +9,7 @@ import {
 } from 'react-native-google-mobile-ads';
 
 // 開発中はテスト広告ID、リリース時に本番IDに差し替える
-const IS_TEST = true;
+const IS_TEST = false;
 
 export const AD_IDS = {
   banner:        IS_TEST ? TestIds.BANNER        : 'ca-app-pub-5328629267151320/4187823918',

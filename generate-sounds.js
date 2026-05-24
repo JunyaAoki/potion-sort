@@ -101,7 +101,7 @@ const winWav = makeWav((t) => {
 
 // ── Complete: チューブ完成ベル（Cペンタトニック昇順 × 8音）─
 // C5 D5 E5 G5 A5 C6 D6 E6 — 1本完成するたびに1音ずつ上がる
-const COMPLETE_FREQS = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.5, 1174.7, 1318.5];
+const COMPLETE_FREQS = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.5, 1174.7, 1318.5, 1568.0];
 
 function makeBell(freq) {
   return makeWav((t) => {
@@ -129,6 +129,6 @@ fs.writeFileSync(path.join(dir, 'win.wav'),    winWav);
 console.log('✓ win.wav     – Cメジャーアルペジオ');
 COMPLETE_FREQS.forEach((freq, i) => {
   fs.writeFileSync(path.join(dir, `complete${i + 1}.wav`), makeBell(freq));
-  console.log(`✓ complete${i + 1}.wav – ${['C5','D5','E5','G5','A5','C6','D6','E6'][i]}`);
+  console.log(`✓ complete${i + 1}.wav – ${['C5','D5','E5','G5','A5','C6','D6','E6','G6'][i]}`);
 });
 console.log('Done!');

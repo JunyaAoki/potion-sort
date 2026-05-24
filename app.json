@@ -14,10 +14,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.junyaaoki.potionsort"
+      "bundleIdentifier": "com.potion.sort"
     },
     "android": {
-      "package": "com.junyaaoki.potionsort",
+      "versionCode": 2,
+      "package": "com.potion.sort",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#141A38"
@@ -39,7 +40,7 @@
       [
         "react-native-google-mobile-ads",
         {
-          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "androidAppId": "ca-app-pub-5328629267151320~6801909779",
           "iosAppId": "ca-app-pub-5328629267151320~7747794975"
         }
       ]

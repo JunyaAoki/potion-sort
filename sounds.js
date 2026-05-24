@@ -13,6 +13,7 @@ const ASSETS = {
   complete6: require('./assets/sounds/complete6.wav'),
   complete7: require('./assets/sounds/complete7.wav'),
   complete8: require('./assets/sounds/complete8.wav'),
+  complete9: require('./assets/sounds/complete9.wav'),
 };
 
 const BGM_SRC = require('./assets/bgm.wav');
