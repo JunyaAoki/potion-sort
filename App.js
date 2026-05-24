@@ -847,7 +847,7 @@ const SPARKLE_EMOJIS = ['⭐','✨','💫','🌟','⚡','💛','🔆','🌠'];
 
 function WinOverlay({ moves, stage, stageColor, coinsEarned, onNext, onReplay }) {
   const cfg      = getStageConfig(stage);
-  const optMoves = Math.round(cfg.colors * cfg.cap * 0.85);
+  const optMoves = cfg.colors * cfg.cap;
   const stars    = moves <= optMoves ? 3 : moves <= optMoves * 1.7 ? 2 : 1;
   const scale    = useRef(new Animated.Value(0.5)).current;
   const coinAnim = useRef(new Animated.Value(0)).current;
@@ -1311,9 +1311,10 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, cha
       if (checkWin(nt)) {
         completedRef.current = 0;
         const totalMoves = moves + 1;
-        const optMoves   = colors * 4;
+        const optMoves   = colors * cap;
         const starsWon   = totalMoves <= optMoves ? 3 : totalMoves <= optMoves * 1.7 ? 2 : 1;
-        const coins      = COIN_PER_STAR[starsWon] * (isChallenge ? 2 : 1);
+        const stageMult  = stage >= 151 ? 3 : stage >= 101 ? 2 : stage >= 51 ? 1.5 : 1;
+        const coins      = Math.round(COIN_PER_STAR[starsWon] * stageMult * (isChallenge ? 2 : 1));
         setCoinsEarned(coins);
         setWon(true);
         onStageComplete?.(stage, coins, starsWon, isChallenge);
