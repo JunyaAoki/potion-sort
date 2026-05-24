@@ -22,6 +22,7 @@ const PALETTE = [
   '#E84343','#2F7BF0','#27C757','#F57C00',
   '#8B30E8','#F0C800','#E8509A','#18B8C8',
   '#8B5E3C','#4A5AAD',
+  '#FF6B35','#00BFA5',
 ];
 const BG   = '#F0F2F8';
 const DARK = '#1A1E2E';
@@ -29,24 +30,74 @@ const GREY = '#888FA8';
 
 // ── Stage Config（5ステージごとに難易度アップ）─────────────
 const TIERS = [
-  { colors: 4, cap: 4, empty: 2 },  // 1-5
-  { colors: 5, cap: 4, empty: 2 },  // 6-10
-  { colors: 6, cap: 4, empty: 2 },  // 11-15
-  { colors: 7, cap: 4, empty: 2 },  // 16-20
-  { colors: 7, cap: 5, empty: 2 },  // 21-25
-  { colors: 8, cap: 5, empty: 2 },  // 26-30
+  // ── cap 4 series (stages 1-20) ──
+  { colors: 4,  cap: 4, empty: 2 },  // 1-5
+  { colors: 5,  cap: 4, empty: 2 },  // 6-10
+  { colors: 6,  cap: 4, empty: 2 },  // 11-15
+  { colors: 7,  cap: 4, empty: 2 },  // 16-20
+  // ── cap 5 series (stages 21-50) ──
+  { colors: 7,  cap: 5, empty: 2 },  // 21-25
+  { colors: 8,  cap: 5, empty: 2 },  // 26-30
   { colors: 9,  cap: 5, empty: 2 },  // 31-35
   { colors: 10, cap: 5, empty: 2 },  // 36-40
   { colors: 10, cap: 5, empty: 2 },  // 41-45
-  { colors: 10, cap: 5, empty: 2 },  // 46+
+  { colors: 10, cap: 5, empty: 2 },  // 46-50
+  // ── cap 6 series (stages 51-100) ──
+  { colors: 6,  cap: 6, empty: 2 },  // 51-55
+  { colors: 7,  cap: 6, empty: 2 },  // 56-60
+  { colors: 8,  cap: 6, empty: 2 },  // 61-65
+  { colors: 9,  cap: 6, empty: 2 },  // 66-70
+  { colors: 10, cap: 6, empty: 2 },  // 71-75
+  { colors: 10, cap: 6, empty: 2 },  // 76-80
+  { colors: 11, cap: 6, empty: 2 },  // 81-85
+  { colors: 11, cap: 6, empty: 2 },  // 86-90
+  { colors: 12, cap: 6, empty: 2 },  // 91-95
+  { colors: 12, cap: 6, empty: 2 },  // 96-100
+  // ── 1 empty tube series (stages 101-150) ──
+  { colors: 7,  cap: 5, empty: 1 },  // 101-105
+  { colors: 8,  cap: 5, empty: 1 },  // 106-110
+  { colors: 9,  cap: 5, empty: 1 },  // 111-115
+  { colors: 10, cap: 5, empty: 1 },  // 116-120
+  { colors: 8,  cap: 6, empty: 1 },  // 121-125
+  { colors: 9,  cap: 6, empty: 1 },  // 126-130
+  { colors: 10, cap: 6, empty: 1 },  // 131-135
+  { colors: 11, cap: 6, empty: 1 },  // 136-140
+  { colors: 11, cap: 6, empty: 1 },  // 141-145
+  { colors: 12, cap: 6, empty: 1 },  // 146-150
+  // ── ultimate series (stages 151-200) ──
+  { colors: 9,  cap: 6, empty: 1 },  // 151-155
+  { colors: 10, cap: 6, empty: 1 },  // 156-160
+  { colors: 10, cap: 6, empty: 1 },  // 161-165
+  { colors: 11, cap: 6, empty: 1 },  // 166-170
+  { colors: 11, cap: 6, empty: 1 },  // 171-175
+  { colors: 12, cap: 6, empty: 1 },  // 176-180
+  { colors: 12, cap: 6, empty: 1 },  // 181-185
+  { colors: 12, cap: 6, empty: 1 },  // 186-190
+  { colors: 12, cap: 6, empty: 1 },  // 191-195
+  { colors: 12, cap: 6, empty: 1 },  // 196-200
 ];
 
 const BANDS = [
-  { name: 'EASY',   color: '#27C757', start: 1,  end: 10 },
-  { name: 'NORMAL', color: '#2F7BF0', start: 11, end: 20 },
-  { name: 'HARD',   color: '#F57C00', start: 21, end: 30 },
-  { name: 'EXPERT', color: '#E84343', start: 31, end: 40 },
-  { name: 'MASTER', color: '#8B30E8', start: 41, end: 50 },
+  { name: 'EASY',     color: '#27C757', start: 1,   end: 10  },
+  { name: 'NORMAL',   color: '#2F7BF0', start: 11,  end: 20  },
+  { name: 'HARD',     color: '#F57C00', start: 21,  end: 30  },
+  { name: 'EXPERT',   color: '#E84343', start: 31,  end: 40  },
+  { name: 'MASTER',   color: '#8B30E8', start: 41,  end: 50  },
+  { name: 'LEGEND',   color: '#F0C800', start: 51,  end: 60  },
+  { name: 'MYTHIC',   color: '#E8509A', start: 61,  end: 70  },
+  { name: 'DIVINE',   color: '#18B8C8', start: 71,  end: 80  },
+  { name: 'ETERNAL',  color: '#8B5E3C', start: 81,  end: 90  },
+  { name: 'VOID',     color: '#4A5AAD', start: 91,  end: 100 },
+  { name: 'SHADOW',   color: '#FF6B35', start: 101, end: 110 },
+  { name: 'CHAOS',    color: '#00BFA5', start: 111, end: 120 },
+  { name: 'APEX',     color: '#CC3366', start: 121, end: 130 },
+  { name: 'ZENITH',   color: '#33AA77', start: 131, end: 140 },
+  { name: 'OMEGA',    color: '#AA5500', start: 141, end: 150 },
+  { name: 'ALPHA',    color: '#5533CC', start: 151, end: 160 },
+  { name: 'ULTIMA',   color: '#CC7700', start: 161, end: 170 },
+  { name: 'SUPREME',  color: '#0099AA', start: 171, end: 180 },
+  { name: 'INFINITE', color: '#AA2244', start: 181, end: 190 },
+  { name: 'ABSOLUTE', color: '#8844AA', start: 191, end: 200 },
 ];
 
 function getStageConfig(stageNum) {
@@ -75,7 +126,7 @@ const COLORBLIND_KEY  = 'ballsort_colorblind_v1';
 const STARS_KEY       = 'ballsort_stars_v1';
 
 // 色覚サポート用シンボル（色ごとに固有の記号）
-const CB_SYMBOLS = ['✕','◆','★','▲','●','■','♥','○','▼','✦'];
+const CB_SYMBOLS = ['✕','◆','★','▲','●','■','♥','○','▼','✦','♦','♣'];
 
 // コインパック定義（IAP準備済み）
 const COIN_PACKS = [
@@ -1765,7 +1816,7 @@ const MAP_LABEL_H  = 42;
 const MAP_PIPE_X   = SW / 2;
 const MAP_CARD_W   = Math.min(158, Math.floor((SW - 80) / 2));
 const MAP_CONN_W   = Math.max(8,  Math.floor(SW / 2 - 15 - MAP_CARD_W));
-const TOTAL_STAGES = 50;
+const TOTAL_STAGES = 200;
 
 function buildMapLayout() {
   const items = [], yPos = {};
