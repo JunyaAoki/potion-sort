@@ -1542,9 +1542,6 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, cha
           <Text style={[s.headerTitle, { color: '#E8D8A0' }]}>
             {isChallenge ? 'DAILY CHALLENGE' : `ステージ ${stage}`}
           </Text>
-          <Text style={{ fontSize: 11, color: stageColor, fontWeight: '700', letterSpacing: 1 }}>
-            {bandName}
-          </Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <TouchableOpacity onPress={onToggleSound} style={s.miniIconBtn}>
@@ -1861,9 +1858,6 @@ function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandCo
             </View>
           ) : (
             <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 8, color: isCurrent ? 'rgba(255,255,255,0.75)' : bandColor, fontWeight: '900', letterSpacing: 1.5 }}>
-                {bandName}
-              </Text>
               <Text style={{ fontSize: 22, fontWeight: '900', color: isCurrent ? '#fff' : '#E8D8A0', lineHeight: 28 }}>
                 {num}
               </Text>
@@ -1995,20 +1989,7 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
             </View>
 
             {MAP_LAYOUT.items.map((item, idx) => {
-              if (item.type === 'label') {
-                return (
-                  <View key={`lbl-${item.band.name}`} style={{ height: MAP_LABEL_H, alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
-                    <View style={{
-                      paddingHorizontal: 18, paddingVertical: 5, borderRadius: 20,
-                      backgroundColor: `${item.band.color}22`, borderWidth: 1, borderColor: `${item.band.color}55`,
-                    }}>
-                      <Text style={{ fontSize: 10, fontWeight: '900', color: item.band.color, letterSpacing: 3 }}>
-                        {item.band.name}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              }
+              if (item.type === 'label') return null;
               const { num, side } = item;
               const band      = BANDS[Math.min(Math.floor((num - 1) / 10), BANDS.length - 1)];
               const isCleared = clearedStages.has(num);
