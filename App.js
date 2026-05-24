@@ -103,7 +103,7 @@ const BANDS = [
 function getStageConfig(stageNum) {
   const idx   = Math.min(Math.floor((stageNum - 1) / 5), TIERS.length - 1);
   const band  = BANDS[Math.min(Math.floor((stageNum - 1) / 10), BANDS.length - 1)];
-  return { ...TIERS[idx], stageColor: band.color, bandName: band.name };
+  return { ...TIERS[idx], stageColor: band.color };
 }
 
 const INITIAL_ITEMS   = { undo: 5, hint: 5 };
@@ -1168,9 +1168,9 @@ function FloatingCheck({ x, y, color, onDone }) {
 // ── Game Screen ────────────────────────────────────────────
 function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, challengeOverride, colorblindMode, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem, onConsumeHeart, onToggleSound, onToggleColorblind }) {
   const cfg = challengeOverride
-    ? { colors: challengeOverride.colors, cap: challengeOverride.cap, empty: challengeOverride.empty, stageColor: '#8B30E8', bandName: 'DAILY' }
+    ? { colors: challengeOverride.colors, cap: challengeOverride.cap, empty: challengeOverride.empty, stageColor: '#8B30E8' }
     : getStageConfig(stage);
-  const { colors, cap, empty, stageColor, bandName } = cfg;
+  const { colors, cap, empty, stageColor } = cfg;
   const levelSeed = challengeOverride?.seed ?? stage;
 
   const [tubes, setTubes]           = useState(() => makeLevel(colors, cap, empty, levelSeed));
@@ -1837,7 +1837,7 @@ function buildMapLayout() {
 const MAP_LAYOUT = buildMapLayout();
 
 // ── Stage Map Node ─────────────────────────────────────────
-function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandColor, bandName, onPress, animIndex }) {
+function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandColor, onPress, animIndex }) {
   const scale    = useRef(new Animated.Value(1)).current;
   const slideX   = useRef(new Animated.Value(side === 'left' ? -70 : 70)).current;
   const mountOp  = useRef(new Animated.Value(0)).current;
@@ -2056,7 +2056,6 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
                   isLocked={isLocked}
                   stars={stageStars[num] ?? 0}
                   bandColor={band.color}
-                  bandName={band.name}
                   onPress={() => handleCellPress(num)}
                   animIndex={idx}
                 />
@@ -2363,6 +2362,16 @@ export default function App() {
       AsyncStorage.getItem(REVIEW_KEY).then(raw => {
         if (!raw) setShowReview(true);
       }).catch(() => {});
+    }
+    const MILESTONES = {
+      50:  { title: '🏆 ステージ50クリア！', msg: 'cap-6チャレンジ開幕！さらに深みへ...' },
+      100: { title: '🌟 ステージ100クリア！', msg: '伝説のポーション使いへの道が開かれた！' },
+      150: { title: '💎 ステージ150クリア！', msg: '究極の挑戦者！残るは最後の50ステージ。' },
+      200: { title: '👑 ステージ200クリア！', msg: '全200ステージ完全制覇！あなたは真の錬金術師！' },
+    };
+    if (!isChallenge && MILESTONES[stageNum]) {
+      const { title, msg } = MILESTONES[stageNum];
+      setTimeout(() => Alert.alert(title, msg, [{ text: 'OK' }]), 800);
     }
     updateWeeklyProgress(stars, isChallenge);
     setClearedStages(prev => {
