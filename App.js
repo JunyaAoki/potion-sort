@@ -2041,6 +2041,19 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
                 {clearedStages.size} / {TOTAL_STAGES} ステージクリア
               </Text>
             )}
+            {nextStage > TOTAL_STAGES && (
+              <View style={{
+                marginTop: 10, paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20,
+                backgroundColor: 'rgba(245,197,24,0.15)', borderWidth: 1.5, borderColor: 'rgba(245,197,24,0.5)',
+              }}>
+                <Text style={{ fontSize: 13, fontWeight: '900', color: '#F5C518', textAlign: 'center', letterSpacing: 1 }}>
+                  👑 全200ステージ完全制覇！
+                </Text>
+                <Text style={{ fontSize: 10, color: 'rgba(220,200,180,0.7)', textAlign: 'center', marginTop: 2 }}>
+                  あなたは真の錬金術師です
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Map with central pipe */}
