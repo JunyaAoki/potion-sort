@@ -156,14 +156,17 @@ function initWeeklyProgress() {
 
 // ── Achievements ───────────────────────────────────────────
 const ACHIEVEMENTS = [
-  { id: 'first_clear',  emoji: '🎉', title: '初クリア',        desc: '初めてステージをクリア' },
-  { id: 'clear_5',      emoji: '🌱', title: '5ステージ制覇',   desc: '5ステージをクリア' },
-  { id: 'clear_10',     emoji: '🏅', title: '10ステージ制覇',  desc: '10ステージをクリア' },
-  { id: 'clear_30',     emoji: '🏆', title: '30ステージ制覇',  desc: '30ステージをクリア' },
-  { id: 'clear_50',     emoji: '👑', title: '全ステージ制覇',  desc: '全50ステージをクリア' },
-  { id: 'perfect',      emoji: '⭐', title: '完璧攻略',        desc: '3つ星でクリア' },
-  { id: 'daily_7',      emoji: '🔥', title: '7日連続ログイン', desc: '7日間連続でログイン' },
-  { id: 'challenge',    emoji: '🧪', title: 'チャレンジャー',  desc: 'デイリーチャレンジをクリア' },
+  { id: 'first_clear',  emoji: '🎉', title: '初クリア',          desc: '初めてステージをクリア' },
+  { id: 'clear_5',      emoji: '🌱', title: '5ステージ制覇',     desc: '5ステージをクリア' },
+  { id: 'clear_10',     emoji: '🏅', title: '10ステージ制覇',    desc: '10ステージをクリア' },
+  { id: 'clear_30',     emoji: '🏆', title: '30ステージ制覇',    desc: '30ステージをクリア' },
+  { id: 'clear_50',     emoji: '💫', title: '50ステージ制覇',    desc: '50ステージをクリア' },
+  { id: 'clear_100',    emoji: '💎', title: '100ステージ制覇',   desc: '100ステージをクリア' },
+  { id: 'clear_150',    emoji: '🌟', title: '150ステージ制覇',   desc: '150ステージをクリア' },
+  { id: 'clear_200',    emoji: '👑', title: '全ステージ完全制覇', desc: '全200ステージをクリア' },
+  { id: 'perfect',      emoji: '⭐', title: '完璧攻略',          desc: '3つ星でクリア' },
+  { id: 'daily_7',      emoji: '🔥', title: '7日連続ログイン',   desc: '7日間連続でログイン' },
+  { id: 'challenge',    emoji: '🧪', title: 'チャレンジャー',    desc: 'デイリーチャレンジをクリア' },
 ];
 
 function getDailyChallengeConfig() {
@@ -2301,11 +2304,14 @@ export default function App() {
   }
 
   function checkAchievements(clearedSet, stars, isChallenge, streak) {
-    if (clearedSet.size >= 1)  unlockAchievement('first_clear');
-    if (clearedSet.size >= 5)  unlockAchievement('clear_5');
-    if (clearedSet.size >= 10) unlockAchievement('clear_10');
-    if (clearedSet.size >= 30) unlockAchievement('clear_30');
-    if (clearedSet.size >= 50) unlockAchievement('clear_50');
+    if (clearedSet.size >= 1)   unlockAchievement('first_clear');
+    if (clearedSet.size >= 5)   unlockAchievement('clear_5');
+    if (clearedSet.size >= 10)  unlockAchievement('clear_10');
+    if (clearedSet.size >= 30)  unlockAchievement('clear_30');
+    if (clearedSet.size >= 50)  unlockAchievement('clear_50');
+    if (clearedSet.size >= 100) unlockAchievement('clear_100');
+    if (clearedSet.size >= 150) unlockAchievement('clear_150');
+    if (clearedSet.size >= 200) unlockAchievement('clear_200');
     if (stars === 3)           unlockAchievement('perfect');
     if (isChallenge)           unlockAchievement('challenge');
     if (streak >= 7)           unlockAchievement('daily_7');
