@@ -1901,9 +1901,9 @@ function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandCo
       }}>
         <TouchableOpacity onPress={handlePress} activeOpacity={0.82} style={{
           flex: 1, borderRadius: 16,
-          backgroundColor: isCurrent ? bandColor : isCleared ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.04)',
+          backgroundColor: isCurrent ? bandColor : isCleared ? `${bandColor}28` : 'rgba(255,255,255,0.04)',
           borderWidth: 1.5,
-          borderColor: isCurrent ? 'rgba(255,240,180,0.65)' : isCleared ? 'rgba(255,255,255,0.20)' : 'rgba(255,255,255,0.06)',
+          borderColor: isCurrent ? 'rgba(255,240,180,0.65)' : isCleared ? `${bandColor}66` : 'rgba(255,255,255,0.06)',
           alignItems: 'center', justifyContent: 'center',
           shadowColor: isCurrent ? bandColor : 'transparent',
           shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.8, shadowRadius: 14, elevation: isCurrent ? 14 : 0,
