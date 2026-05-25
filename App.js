@@ -1609,6 +1609,11 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, cha
           <Text style={[s.headerTitle, { color: '#E8D8A0' }]}>
             {isChallenge ? 'DAILY CHALLENGE' : `ステージ ${stage}`}
           </Text>
+          {!isChallenge && empty === 1 && (
+            <Text style={{ fontSize: 10, color: '#E84343', fontWeight: '800', letterSpacing: 1 }}>
+              🔥 EXTREME
+            </Text>
+          )}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <TouchableOpacity onPress={onToggleSound} style={s.miniIconBtn}>
