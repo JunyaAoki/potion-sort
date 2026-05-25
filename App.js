@@ -1825,7 +1825,6 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, cha
 
 // ── Stage Map Layout ───────────────────────────────────────
 const MAP_STEP     = 96;
-const MAP_LABEL_H  = 42;
 const MAP_PIPE_X   = SW / 2;
 const MAP_CARD_W   = Math.min(158, Math.floor((SW - 80) / 2));
 const MAP_CONN_W   = Math.max(8,  Math.floor(SW / 2 - 15 - MAP_CARD_W));
@@ -1835,11 +1834,6 @@ function buildMapLayout() {
   const items = [], yPos = {};
   let y = 0;
   for (let num = TOTAL_STAGES; num >= 1; num--) {
-    if (num % 10 === 0) {
-      const bandIdx = Math.min(Math.floor((num - 1) / 10), BANDS.length - 1);
-      items.push({ type: 'label', band: BANDS[bandIdx], y, h: MAP_LABEL_H });
-      y += MAP_LABEL_H;
-    }
     const side = (TOTAL_STAGES - num) % 2 === 0 ? 'right' : 'left';
     yPos[num] = y;
     items.push({ type: 'stage', num, y, h: MAP_STEP, side });
@@ -2053,7 +2047,6 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
             </View>
 
             {MAP_LAYOUT.items.map((item, idx) => {
-              if (item.type === 'label') return null;
               const { num, side } = item;
               const band      = BANDS[Math.min(Math.floor((num - 1) / 10), BANDS.length - 1)];
               const isCleared = clearedStages.has(num);
