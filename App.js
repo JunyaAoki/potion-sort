@@ -169,7 +169,19 @@ const ACHIEVEMENTS = [
 function getDailyChallengeConfig() {
   const today = new Date().toISOString().slice(0, 10);
   const seed  = today.split('-').reduce((acc, n) => acc * 31 + parseInt(n), 1);
-  return { colors: 6, cap: 4, empty: 2, seed, dateStr: today };
+  // 曜日（0=日〜6=土）で難易度を変化させる
+  const dow = new Date().getDay();
+  const DAILY_TIERS = [
+    { colors: 6,  cap: 4, empty: 2 }, // 日: 易
+    { colors: 7,  cap: 4, empty: 2 }, // 月
+    { colors: 8,  cap: 5, empty: 2 }, // 火
+    { colors: 9,  cap: 5, empty: 2 }, // 水
+    { colors: 10, cap: 5, empty: 2 }, // 木
+    { colors: 10, cap: 6, empty: 2 }, // 金
+    { colors: 12, cap: 6, empty: 1 }, // 土: 最難
+  ];
+  const { colors, cap, empty } = DAILY_TIERS[dow];
+  return { colors, cap, empty, seed, dateStr: today };
 }
 const DAILY_REWARDS   = [
   { day: 1, coins: 20,  hearts: 0 },
