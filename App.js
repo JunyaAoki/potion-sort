@@ -117,7 +117,7 @@ const COINS_KEY       = 'ballsort_coins_v1';
 const COIN_PER_STAR   = [0, 15, 30, 50]; // index = stars
 const DAILY_KEY       = 'ballsort_daily_v1';
 const REVIEW_KEY      = 'ballsort_review_v1';
-const REVIEW_STAGE    = 10;
+const REVIEW_STAGE    = 15;
 const CHALLENGE_KEY   = 'ballsort_challenge_v1';
 const ACHIEVE_KEY     = 'ballsort_achieve_v1';
 const WEEKLY_KEY      = 'ballsort_weekly_v1';
@@ -1898,9 +1898,9 @@ function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandCo
         position: 'absolute',
         left: MAP_PIPE_X - DOT_R, top: MAP_STEP / 2 - DOT_R,
         width: DOT_R * 2, height: DOT_R * 2, borderRadius: DOT_R,
-        backgroundColor: isCurrent ? bandColor : isCleared ? '#5A18B0' : 'rgba(18,8,45,0.96)',
+        backgroundColor: isCurrent ? bandColor : isCleared ? `${bandColor}CC` : 'rgba(18,8,45,0.96)',
         borderWidth: isCurrent ? 3 : 1.5,
-        borderColor: isCurrent ? 'rgba(255,240,180,0.9)' : isCleared ? `${bandColor}80` : 'rgba(255,255,255,0.13)',
+        borderColor: isCurrent ? 'rgba(255,240,180,0.9)' : isCleared ? `${bandColor}` : 'rgba(255,255,255,0.13)',
         zIndex: 5, alignItems: 'center', justifyContent: 'center',
         shadowColor: isCurrent ? bandColor : 'transparent',
         shadowOffset: { width: 0, height: 0 }, shadowOpacity: 1, shadowRadius: 12, elevation: 10,
