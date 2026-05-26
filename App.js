@@ -2044,9 +2044,18 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
             </Text>
             <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.6)', letterSpacing: 3, marginTop: 3 }}>✦ LIQUID PUZZLE ✦</Text>
             {clearedStages.size > 0 && (
-              <Text style={{ fontSize: 11, color: 'rgba(220,200,255,0.5)', marginTop: 6 }}>
-                {clearedStages.size} / {TOTAL_STAGES} ステージクリア
-              </Text>
+              <View style={{ alignItems: 'center', marginTop: 8, width: SW * 0.6 }}>
+                <Text style={{ fontSize: 11, color: 'rgba(220,200,255,0.5)', marginBottom: 4 }}>
+                  {clearedStages.size} / {TOTAL_STAGES} ステージクリア
+                </Text>
+                <View style={{ width: '100%', height: 5, backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 3 }}>
+                  <View style={{
+                    width: `${Math.min(100, (clearedStages.size / TOTAL_STAGES) * 100)}%`,
+                    height: '100%', borderRadius: 3,
+                    backgroundColor: clearedStages.size >= TOTAL_STAGES ? '#F5C518' : '#8B30E8',
+                  }} />
+                </View>
+              </View>
             )}
             {nextStage > TOTAL_STAGES && (
               <View style={{
