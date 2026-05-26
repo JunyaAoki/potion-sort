@@ -196,6 +196,11 @@ const DAILY_REWARDS   = [
   { day: 7, coins: 100, hearts: 3 },
 ];
 
+function fmtCoins(n) {
+  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+  return String(n);
+}
+
 // ── Seeded PRNG (mulberry32) ───────────────────────────────
 function seededRand(seed) {
   let s = seed;
@@ -2014,7 +2019,7 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
             backgroundColor: 'rgba(245,197,24,0.15)', paddingHorizontal: 10, paddingVertical: 5,
             borderRadius: 14, borderWidth: 1, borderColor: 'rgba(245,197,24,0.35)' }}>
             <Text style={{ fontSize: 14 }}>🪙</Text>
-            <Text style={{ fontSize: 14, fontWeight: '900', color: '#F5C518' }}>{coins}</Text>
+            <Text style={{ fontSize: 14, fontWeight: '900', color: '#F5C518' }}>{fmtCoins(coins)}</Text>
           </View>
           <View style={{ alignItems: 'center' }}>
             <View style={{ flexDirection: 'row', gap: 2 }}>
