@@ -870,10 +870,11 @@ function WeeklyMissionsModal({ weekly, coins, onClaim, onClose }) {
 // ── Win Overlay ────────────────────────────────────────────
 const SPARKLE_EMOJIS = ['⭐','✨','💫','🌟','⚡','💛','🔆','🌠'];
 
-function WinOverlay({ moves, stage, stageColor, coinsEarned, onNext, onReplay }) {
+function WinOverlay({ moves, stage, stageColor, coinsEarned, prevBestStars, onNext, onReplay }) {
   const cfg      = getStageConfig(stage);
   const optMoves = cfg.colors * cfg.cap;
   const stars    = moves <= optMoves ? 3 : moves <= optMoves * 1.7 ? 2 : 1;
+  const isNewRecord = stars > (prevBestStars ?? 0);
   const scale    = useRef(new Animated.Value(0.5)).current;
   const coinAnim = useRef(new Animated.Value(0)).current;
   const [displayCoins, setDisplayCoins] = useState(0);
@@ -985,6 +986,11 @@ function WinOverlay({ moves, stage, stageColor, coinsEarned, onNext, onReplay })
       <Animated.View style={[s.winCard, { transform: [{ scale }] }]}>
         <Text style={s.winEmoji}>🎉</Text>
         <Text style={s.winTitle}>クリア！</Text>
+        {isNewRecord && (
+          <View style={{ backgroundColor: '#E84343', paddingHorizontal: 14, paddingVertical: 4, borderRadius: 12, marginTop: -4 }}>
+            <Text style={{ fontSize: 11, color: '#fff', fontWeight: '900', letterSpacing: 1 }}>🆕 NEW RECORD!</Text>
+          </View>
+        )}
 
         {/* Stars animate in */}
         <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -1202,7 +1208,7 @@ function FloatingCheck({ x, y, color, onDone }) {
 }
 
 // ── Game Screen ────────────────────────────────────────────
-function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, challengeOverride, colorblindMode, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem, onConsumeHeart, onToggleSound, onToggleColorblind }) {
+function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, challengeOverride, colorblindMode, bestStars, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem, onConsumeHeart, onToggleSound, onToggleColorblind }) {
   const cfg = challengeOverride
     ? { colors: challengeOverride.colors, cap: challengeOverride.cap, empty: challengeOverride.empty, stageColor: '#8B30E8' }
     : getStageConfig(stage);
@@ -1646,9 +1652,18 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, cha
               🔥 EXTREME
             </Text>
           ) : !isChallenge ? (
-            <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.55)', fontWeight: '600' }}>
-              ★3目標 {colors * cap}手以内
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.55)', fontWeight: '600' }}>
+                ★3目標 {colors * cap}手
+              </Text>
+              {bestStars > 0 && (
+                <View style={{ flexDirection: 'row', gap: 1 }}>
+                  {[1,2,3].map(s => (
+                    <Text key={s} style={{ fontSize: 9, color: s <= bestStars ? '#F5C518' : 'rgba(255,255,255,0.2)' }}>★</Text>
+                  ))}
+                </View>
+              )}
+            </View>
           ) : null}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -1776,6 +1791,7 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, cha
         <WinOverlay
           moves={moves} stage={stage} stageColor={stageColor}
           coinsEarned={coinsEarned}
+          prevBestStars={bestStars}
           onNext={onNext} onReplay={restart}
         />
       )}
@@ -2564,6 +2580,7 @@ export default function App() {
         key={isChallenge ? 'challenge' : stage}
         stage={gameStage}
         challengeOverride={gameCfg}
+        bestStars={stageStars[gameStage] ?? 0}
         items={items}
         isFirstPlay={!tutorialDone && stage === 1}
         isChallenge={isChallenge}
