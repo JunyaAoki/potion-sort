@@ -167,6 +167,8 @@ const ACHIEVEMENTS = [
   { id: 'perfect',      emoji: '⭐', title: '完璧攻略',          desc: '3つ星でクリア' },
   { id: 'daily_7',      emoji: '🔥', title: '7日連続ログイン',   desc: '7日間連続でログイン' },
   { id: 'challenge',    emoji: '🧪', title: 'チャレンジャー',    desc: 'デイリーチャレンジをクリア' },
+  { id: 'no_hint',      emoji: '🧠', title: '頭脳明晰',          desc: 'ヒントなしでステージをクリア' },
+  { id: 'speed_clear',  emoji: '⚡', title: 'スピードクリア',    desc: '最適手数ちょうどでクリア' },
 ];
 
 function getDailyChallengeConfig() {
@@ -1209,6 +1211,7 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, cha
   const [tutorialStep, setTutorialStep] = useState(isFirstPlay ? 1 : 0);
   const [coinsEarned, setCoinsEarned]   = useState(0);
   const [deadlocked, setDeadlocked]     = useState(false);
+  const usedHintRef     = useRef(false);
   const restartCountRef = useRef(0);
   const glowAnims       = useRef(Array.from({ length: tubes.length }, () => new Animated.Value(0))).current;
   const [floatingChecks, setFloatingChecks] = useState([]);
@@ -1344,7 +1347,7 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, cha
         const coins      = Math.round(COIN_PER_STAR[starsWon] * stageMult * (isChallenge ? 2 : 1));
         setCoinsEarned(coins);
         setWon(true);
-        onStageComplete?.(stage, coins, starsWon, isChallenge);
+        onStageComplete?.(stage, coins, starsWon, isChallenge, { noHint: !usedHintRef.current, exactOpt: totalMoves === optMoves });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         playSound('win');
       } else if (isDeadlocked(nt, cap)) {
@@ -1540,6 +1543,7 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, cha
       const top = tubes[f].at(-1);
       let cnt = 1;
       while (cnt < tubes[f].length && tubes[f][tubes[f].length - 1 - cnt] === top) cnt++;
+      usedHintRef.current = true;
       onUseItem('hint');
       setHistory(h => [...h, tubes.map(x => [...x])]);
       const nt = tubes.map(x => [...x]);
@@ -1549,8 +1553,16 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, cha
       setSelected(null);
       bounce(t);
       if (checkWin(nt)) {
+        const totalMoves = moves + 1;
+        const optMoves2  = colors * cap;
+        const starsWon2  = totalMoves <= optMoves2 ? 3 : totalMoves <= optMoves2 * 1.7 ? 2 : 1;
+        const stageMult2 = stage >= 151 ? 3 : stage >= 101 ? 2 : stage >= 51 ? 1.5 : 1;
+        const coinsWon2  = Math.round(COIN_PER_STAR[starsWon2] * stageMult2 * (isChallenge ? 2 : 1));
+        setCoinsEarned(coinsWon2);
         setWon(true);
-        onStageComplete?.(stage);
+        onStageComplete?.(stage, coinsWon2, starsWon2, isChallenge, { noHint: false, exactOpt: false });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        playSound('win');
       }
     } else {
       Alert.alert('詰まっています', '↩ Undoで戻るか、🔄 リスタートを試してください。');
@@ -1558,6 +1570,7 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, cha
   }
 
   function restart() {
+    usedHintRef.current = false;
     glowAnims.forEach(a => a.setValue(0));
     setFloatingChecks([]);
     tiltAnims.forEach(a => a.setValue(0));
@@ -1665,9 +1678,16 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, cha
 
         <View style={{ flex: 1 }} />
 
-        <Text style={{ fontSize: 13, color: 'rgba(200,180,255,0.75)', fontWeight: '700', marginRight: 4 }}>
-          {moves}手
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: 4 }}>
+          {(() => {
+            const optM = colors * cap;
+            const liveStars = moves === 0 ? 3 : moves <= optM ? 3 : moves <= optM * 1.7 ? 2 : 1;
+            return [1,2,3].map(s => (
+              <Text key={s} style={{ fontSize: 11, color: s <= liveStars ? '#F5C518' : 'rgba(255,255,255,0.20)' }}>★</Text>
+            ));
+          })()}
+          <Text style={{ fontSize: 13, color: 'rgba(200,180,255,0.75)', fontWeight: '700' }}>{moves}手</Text>
+        </View>
         <TouchableOpacity style={[s.restartBtn, { backgroundColor: 'rgba(255,255,255,0.12)' }]} onPress={restartWithAd}>
           <Text style={s.restartBtnTxt}>🔄</Text>
         </TouchableOpacity>
@@ -2342,7 +2362,7 @@ export default function App() {
     });
   }
 
-  function checkAchievements(clearedSet, stars, isChallenge, streak) {
+  function checkAchievements(clearedSet, stars, isChallenge, streak, flags = {}) {
     if (clearedSet.size >= 1)   unlockAchievement('first_clear');
     if (clearedSet.size >= 5)   unlockAchievement('clear_5');
     if (clearedSet.size >= 10)  unlockAchievement('clear_10');
@@ -2354,6 +2374,8 @@ export default function App() {
     if (stars === 3)           unlockAchievement('perfect');
     if (isChallenge)           unlockAchievement('challenge');
     if (streak >= 7)           unlockAchievement('daily_7');
+    if (flags.noHint)          unlockAchievement('no_hint');
+    if (flags.exactOpt)        unlockAchievement('speed_clear');
   }
 
   function saveHearts(h) {
@@ -2395,7 +2417,7 @@ export default function App() {
     AsyncStorage.setItem(ITEMS_KEY, JSON.stringify(obj)).catch(() => {});
   }
 
-  function handleStageComplete(stageNum, coinsWon = 0, stars = 1, isChallenge = false) {
+  function handleStageComplete(stageNum, coinsWon = 0, stars = 1, isChallenge = false, flags = {}) {
     setCoins(prev => {
       const next = prev + coinsWon;
       AsyncStorage.setItem(COINS_KEY, String(next)).catch(() => {});
@@ -2429,7 +2451,7 @@ export default function App() {
       const next = new Set(prev);
       next.add(stageNum);
       saveProgress(next);
-      checkAchievements(next, stars, isChallenge, dailyBonus?.streak ?? 0);
+      checkAchievements(next, stars, isChallenge, dailyBonus?.streak ?? 0, flags);
       return next;
     });
   }
@@ -2537,7 +2559,15 @@ export default function App() {
         colorblindMode={colorblind}
         onTutorialDone={handleTutorialDone}
         onBack={() => { setChallengeConfig(null); setScreen('stages'); }}
-        onNext={() => { setChallengeConfig(null); setScreen('stages'); }}
+        onNext={() => {
+          setChallengeConfig(null);
+          if (!isChallenge && stage < TOTAL_STAGES) {
+            consumeHeart();
+            setStage(prev => prev + 1);
+          } else {
+            setScreen('stages');
+          }
+        }}
         onStageComplete={isChallenge
           ? (_, coins, stars) => handleChallengeComplete(coins, stars)
           : handleStageComplete}
