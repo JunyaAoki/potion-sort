@@ -1002,9 +1002,15 @@ function WinOverlay({ moves, stage, stageColor, coinsEarned, onNext, onReplay })
 
         <Text style={{ fontSize: 14, color: GREY }}>{moves} 手でクリア</Text>
 
-        <TouchableOpacity style={[s.nextBtn, { backgroundColor: stageColor }]} onPress={onNext}>
-          <Text style={s.nextBtnTxt}>次のステージ →</Text>
-        </TouchableOpacity>
+        {stage < TOTAL_STAGES ? (
+          <TouchableOpacity style={[s.nextBtn, { backgroundColor: stageColor }]} onPress={onNext}>
+            <Text style={s.nextBtnTxt}>次のステージ →</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#F5C518' }]} onPress={onNext}>
+            <Text style={[s.nextBtnTxt, { color: '#1A1E2E' }]}>👑 全クリア！マップへ戻る</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY }]} onPress={onReplay}>
           <Text style={s.nextBtnTxt}>🔄 もう一度</Text>
         </TouchableOpacity>
