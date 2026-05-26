@@ -137,10 +137,12 @@ const COIN_PACKS = [
 
 // ── Weekly Missions ────────────────────────────────────────
 const WEEKLY_MISSIONS = [
-  { id: 'w_clear3',    emoji: '🎯', title: '3ステージクリア',    desc: '今週3ステージをクリア',       target: 3, reward: 50,  type: 'clear' },
-  { id: 'w_clear7',    emoji: '⚡', title: '7ステージクリア',    desc: '今週7ステージをクリア',       target: 7, reward: 120, type: 'clear' },
-  { id: 'w_perfect3',  emoji: '⭐', title: '3つ星を3回',         desc: '3つ星で3回クリア',            target: 3, reward: 80,  type: 'perfect' },
-  { id: 'w_challenge', emoji: '🧪', title: 'チャレンジクリア',   desc: 'デイリーチャレンジをクリア',  target: 1, reward: 60,  type: 'challenge' },
+  { id: 'w_clear3',    emoji: '🎯', title: '3ステージクリア',    desc: '今週3ステージをクリア',       target: 3,  reward: 50,  type: 'clear' },
+  { id: 'w_clear7',    emoji: '⚡', title: '7ステージクリア',    desc: '今週7ステージをクリア',       target: 7,  reward: 120, type: 'clear' },
+  { id: 'w_perfect3',  emoji: '⭐', title: '3つ星を3回',         desc: '3つ星で3回クリア',            target: 3,  reward: 80,  type: 'perfect' },
+  { id: 'w_challenge', emoji: '🧪', title: 'チャレンジクリア',   desc: 'デイリーチャレンジをクリア',  target: 1,  reward: 60,  type: 'challenge' },
+  { id: 'w_clear15',   emoji: '🏅', title: '15ステージクリア',   desc: '今週15ステージをクリア',      target: 15, reward: 200, type: 'clear' },
+  { id: 'w_nohint3',   emoji: '🧠', title: 'ヒントなし3回',      desc: 'ヒントなしで3回クリア',       target: 3,  reward: 100, type: 'nohint' },
 ];
 
 function getWeekKey() {
@@ -1007,7 +1009,12 @@ function WinOverlay({ moves, stage, stageColor, coinsEarned, onNext, onReplay })
           <Text style={{ fontSize: 32, fontWeight: '900', color: '#F5C518' }}>+{displayCoins}</Text>
         </View>
 
-        <Text style={{ fontSize: 14, color: GREY }}>{moves} 手でクリア</Text>
+        <Text style={{ fontSize: 14, color: GREY }}>
+          {moves} 手でクリア
+          <Text style={{ fontSize: 11, color: moves <= optMoves ? '#27C757' : GREY }}>
+            {'  '}(最適 {optMoves} 手)
+          </Text>
+        </Text>
 
         {stage < TOTAL_STAGES ? (
           <TouchableOpacity style={[s.nextBtn, { backgroundColor: stageColor }]} onPress={onNext}>
@@ -1634,11 +1641,15 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, cha
           <Text style={[s.headerTitle, { color: '#E8D8A0' }]}>
             {isChallenge ? 'DAILY CHALLENGE' : `ステージ ${stage}`}
           </Text>
-          {!isChallenge && empty === 1 && (
+          {!isChallenge && empty === 1 ? (
             <Text style={{ fontSize: 10, color: '#E84343', fontWeight: '800', letterSpacing: 1 }}>
               🔥 EXTREME
             </Text>
-          )}
+          ) : !isChallenge ? (
+            <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.55)', fontWeight: '600' }}>
+              ★3目標 {colors * cap}手以内
+            </Text>
+          ) : null}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <TouchableOpacity onPress={onToggleSound} style={s.miniIconBtn}>
@@ -2446,7 +2457,7 @@ export default function App() {
       const { title, msg } = MILESTONES[stageNum];
       setTimeout(() => Alert.alert(title, msg, [{ text: 'OK' }]), 800);
     }
-    updateWeeklyProgress(stars, isChallenge);
+    updateWeeklyProgress(stars, isChallenge, flags);
     setClearedStages(prev => {
       const next = new Set(prev);
       next.add(stageNum);
@@ -2456,18 +2467,18 @@ export default function App() {
     });
   }
 
-  function updateWeeklyProgress(stars, isChallenge) {
+  function updateWeeklyProgress(stars, isChallenge, flags = {}) {
     setWeekly(prev => {
       const thisWeek = getWeekKey();
       const base = prev.weekKey === thisWeek ? prev : initWeeklyProgress();
       const p = { ...base.progress };
-      // クリア数カウント
-      p['w_clear3']    = { ...p['w_clear3'],    current: p['w_clear3'].current + 1 };
-      p['w_clear7']    = { ...p['w_clear7'],    current: p['w_clear7'].current + 1 };
-      // 3つ星カウント
-      if (stars === 3) p['w_perfect3'] = { ...p['w_perfect3'], current: p['w_perfect3'].current + 1 };
-      // チャレンジカウント
-      if (isChallenge) p['w_challenge'] = { ...p['w_challenge'], current: p['w_challenge'].current + 1 };
+      const inc = id => { if (p[id]) p[id] = { ...p[id], current: p[id].current + 1 }; };
+      inc('w_clear3');
+      inc('w_clear7');
+      inc('w_clear15');
+      if (stars === 3)       inc('w_perfect3');
+      if (isChallenge)       inc('w_challenge');
+      if (flags.noHint)      inc('w_nohint3');
       const next = { weekKey: thisWeek, progress: p };
       AsyncStorage.setItem(WEEKLY_KEY, JSON.stringify(next)).catch(() => {});
       return next;
@@ -2561,7 +2572,7 @@ export default function App() {
         onBack={() => { setChallengeConfig(null); setScreen('stages'); }}
         onNext={() => {
           setChallengeConfig(null);
-          if (!isChallenge && stage < TOTAL_STAGES) {
+          if (!isChallenge && stage < TOTAL_STAGES && hearts.count > 0) {
             consumeHeart();
             setStage(prev => prev + 1);
           } else {
