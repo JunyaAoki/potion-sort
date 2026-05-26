@@ -218,8 +218,9 @@ function makeLevel(numColors, cap, numEmpty, seed) {
   for (let c = 0; c < numColors; c++) tubes.push(Array(cap).fill(c));
   for (let i = 0; i < numEmpty; i++) tubes.push([]);
 
-  // ランダムに移動してシャッフル（手数の10倍以上で十分混ざる）
-  const steps = numColors * cap * 12;
+  // 空チューブが少ないほど制約が強く混ざりにくいので追加ステップ数を増やす
+  const emptyMult = numEmpty === 1 ? 20 : 12;
+  const steps = numColors * cap * emptyMult;
   for (let s = 0; s < steps; s++) {
     const froms = [];
     for (let i = 0; i < N; i++) if (tubes[i].length > 0) froms.push(i);
