@@ -1239,12 +1239,12 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, cha
   }
 
   const N     = tubes.length;
-  const cols  = N <= 6 ? N : Math.ceil(N / 2);
-  const rows  = N <= 6 ? 1 : 2;
+  const rows  = N <= 6 ? 1 : N <= 12 ? 2 : 3;
+  const cols  = N <= 6 ? N : rows === 3 ? Math.ceil(N / 3) : Math.ceil(N / 2);
   const tubeW = Math.min(Math.floor((SW - 40 - (cols - 1) * 12) / cols), 84);
   // Cap tubeH so all rows fit: header≈64 + itemBar≈58 + safeArea≈100 + gap≈20
   const boardH   = SH - 242;
-  const maxTubeH = rows === 2 ? (boardH - 20) / 2 - 13 : boardH - 13;
+  const maxTubeH = rows === 3 ? (boardH - 40) / 3 - 13 : rows === 2 ? (boardH - 20) / 2 - 13 : boardH - 13;
   const tubeH    = Math.min(tubeW * cap * 0.85, maxTubeH);
   const ballSz   = tubeW - 10;
 
@@ -1627,6 +1627,12 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, cha
 
   const rowData = rows === 1
     ? [Array.from({ length: N }, (_, i) => i)]
+    : rows === 3
+    ? [
+        Array.from({ length: cols }, (_, i) => i).filter(i => i < N),
+        Array.from({ length: cols }, (_, i) => i + cols).filter(i => i < N),
+        Array.from({ length: N - 2 * cols }, (_, i) => i + 2 * cols).filter(i => i < N),
+      ].filter(r => r.length > 0)
     : [
         Array.from({ length: cols },     (_, i) => i),
         Array.from({ length: N - cols }, (_, i) => i + cols),
