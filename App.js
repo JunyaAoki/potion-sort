@@ -121,6 +121,7 @@ const REVIEW_STAGE    = 15;
 const CHALLENGE_KEY   = 'ballsort_challenge_v1';
 const ACHIEVE_KEY     = 'ballsort_achieve_v1';
 const WEEKLY_KEY      = 'ballsort_weekly_v1';
+const ENDLESS_KEY     = 'ballsort_endless_v1';
 const BGM_KEY         = 'ballsort_bgm_v1';
 const COLORBLIND_KEY  = 'ballsort_colorblind_v1';
 const STARS_KEY       = 'ballsort_stars_v1';
@@ -199,6 +200,14 @@ const DAILY_REWARDS   = [
   { day: 6, coins: 80,  hearts: 0 },
   { day: 7, coins: 100, hearts: 3 },
 ];
+
+function getEndlessConfig(score) {
+  const cap    = score >= 20 ? 6 : score >= 5 ? 5 : 4;
+  const empty  = score >= 40 ? 1 : 2;
+  const colors = Math.min(12, 4 + Math.floor(score / 3));
+  const seed   = (Date.now() ^ (score * 0x9e3779b9)) >>> 0;
+  return { colors, cap, empty, seed };
+}
 
 function fmtCoins(n) {
   if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
@@ -870,7 +879,7 @@ function WeeklyMissionsModal({ weekly, coins, onClaim, onClose }) {
 // ── Win Overlay ────────────────────────────────────────────
 const SPARKLE_EMOJIS = ['⭐','✨','💫','🌟','⚡','💛','🔆','🌠'];
 
-function WinOverlay({ moves, stage, stageColor, coinsEarned, prevBestStars, onNext, onReplay }) {
+function WinOverlay({ moves, stage, stageColor, coinsEarned, prevBestStars, isEndless, endlessScore, onNext, onReplay }) {
   const cfg      = getStageConfig(stage);
   const optMoves = cfg.colors * cfg.cap;
   const stars    = moves <= optMoves ? 3 : moves <= optMoves * 1.7 ? 2 : 1;
@@ -1022,7 +1031,11 @@ function WinOverlay({ moves, stage, stageColor, coinsEarned, prevBestStars, onNe
           </Text>
         </Text>
 
-        {stage < TOTAL_STAGES ? (
+        {isEndless ? (
+          <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#8B30E8' }]} onPress={onNext}>
+            <Text style={s.nextBtnTxt}>∞ 次のステージへ ({endlessScore + 2})</Text>
+          </TouchableOpacity>
+        ) : stage < TOTAL_STAGES ? (
           <TouchableOpacity style={[s.nextBtn, { backgroundColor: stageColor }]} onPress={onNext}>
             <Text style={s.nextBtnTxt}>次のステージ →</Text>
           </TouchableOpacity>
@@ -1208,7 +1221,7 @@ function FloatingCheck({ x, y, color, onDone }) {
 }
 
 // ── Game Screen ────────────────────────────────────────────
-function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, challengeOverride, colorblindMode, bestStars, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem, onConsumeHeart, onToggleSound, onToggleColorblind }) {
+function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isEndless, endlessScore, endlessHigh, challengeOverride, colorblindMode, bestStars, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem, onConsumeHeart, onToggleSound, onToggleColorblind }) {
   const cfg = challengeOverride
     ? { colors: challengeOverride.colors, cap: challengeOverride.cap, empty: challengeOverride.empty, stageColor: '#8B30E8' }
     : getStageConfig(stage);
@@ -1651,9 +1664,13 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, cha
         </TouchableOpacity>
         <View style={{ alignItems: 'center' }}>
           <Text style={[s.headerTitle, { color: '#E8D8A0' }]}>
-            {isChallenge ? 'DAILY CHALLENGE' : `ステージ ${stage}`}
+            {isEndless ? `ENDLESS ${endlessScore + 1}` : isChallenge ? 'DAILY CHALLENGE' : `ステージ ${stage}`}
           </Text>
-          {!isChallenge && empty === 1 ? (
+          {isEndless ? (
+            <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.55)', fontWeight: '600' }}>
+              🏆 BEST: {endlessHigh}
+            </Text>
+          ) : !isChallenge && empty === 1 ? (
             <Text style={{ fontSize: 10, color: '#E84343', fontWeight: '800', letterSpacing: 1 }}>
               🔥 EXTREME
             </Text>
@@ -1798,6 +1815,7 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, cha
           moves={moves} stage={stage} stageColor={stageColor}
           coinsEarned={coinsEarned}
           prevBestStars={bestStars}
+          isEndless={isEndless} endlessScore={endlessScore}
           onNext={onNext} onReplay={restart}
         />
       )}
@@ -2009,7 +2027,7 @@ function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandCo
 const HEART_COIN_COST  = 30;
 const REFILL_COIN_COST = 100;
 
-function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, weekly, onPlay, onPlayChallenge, onAddHearts, onSpendCoins, onShowMissions, onShowSettings, onShowAchievements }) {
+function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, weekly, endlessHigh, onPlay, onPlayChallenge, onPlayEndless, onAddHearts, onSpendCoins, onShowMissions, onShowSettings, onShowAchievements }) {
   const nextStage = Math.min(TOTAL_STAGES + 1, clearedStages.size > 0 ? Math.max(...clearedStages) + 1 : 1);
   const [shopOpen, setShopOpen] = useState(false);
   const [noHearts, setNoHearts] = useState(false);
@@ -2219,6 +2237,30 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
                 </TouchableOpacity>
               );
             })()}
+
+            {/* Endless Mode */}
+            <TouchableOpacity
+              onPress={() => { if (hearts.count <= 0) { setNoHearts(true); return; } onPlayEndless(); }}
+              activeOpacity={0.82}
+              style={{
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+                paddingVertical: 14, borderRadius: 28,
+                backgroundColor: 'rgba(10,5,30,0.85)',
+                borderWidth: 1.5, borderColor: 'rgba(139,48,232,0.6)',
+                shadowColor: '#8B30E8',
+                shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 5,
+              }}
+            >
+              <Text style={{ fontSize: 22 }}>∞</Text>
+              <View>
+                <Text style={{ color: '#C97FFF', fontSize: 13, fontWeight: '800', letterSpacing: 1 }}>
+                  ENDLESS MODE
+                </Text>
+                <Text style={{ color: 'rgba(200,180,255,0.65)', fontSize: 11, marginTop: 1 }}>
+                  {endlessHigh > 0 ? `🏆 BEST: ${endlessHigh}ステージ` : '無限に続く挑戦！'}
+                </Text>
+              </View>
+            </TouchableOpacity>
           </View>
         </ScrollView>
 
@@ -2301,6 +2343,9 @@ export default function App() {
   const [showSettings, setShowSettings]   = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
   const [stageStars, setStageStars]       = useState({});
+  const [endlessScore, setEndlessScore]   = useState(0);
+  const [endlessHigh, setEndlessHigh]     = useState(0);
+  const [endlessConfig, setEndlessConfig] = useState(null);
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -2318,7 +2363,8 @@ export default function App() {
       AsyncStorage.getItem(BGM_KEY),
       AsyncStorage.getItem(COLORBLIND_KEY),
       AsyncStorage.getItem(STARS_KEY),
-    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawCb, rawSt]) => {
+      AsyncStorage.getItem(ENDLESS_KEY),
+    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawCb, rawSt, rawEl]) => {
       if (rawP) setClearedStages(new Set(JSON.parse(rawP)));
       if (rawI) setItems(JSON.parse(rawI));
       if (!rawT) setTutorialDone(false);
@@ -2360,6 +2406,7 @@ export default function App() {
       setBGMEnabled(bgmSaved);
       if (rawCb === '1') setColorblind(true);
       if (rawSt) setStageStars(JSON.parse(rawSt));
+      if (rawEl) setEndlessHigh(Number(rawEl));
     }).catch(() => {});
     initSounds().then(() => playBGM());
     loadRewarded();
@@ -2577,23 +2624,60 @@ export default function App() {
     handleStageComplete(0, coinsWon, stars, true);
   }
 
+  function handlePlayEndless() {
+    if (hearts.count <= 0) return;
+    consumeHeart();
+    setEndlessScore(0);
+    setEndlessConfig(getEndlessConfig(0));
+    setScreen('game');
+  }
+
+  function handleEndlessComplete(coinsWon) {
+    setCoins(prev => {
+      const next = prev + coinsWon;
+      AsyncStorage.setItem(COINS_KEY, String(next)).catch(() => {});
+      return next;
+    });
+  }
+
+  function handleEndlessAdvance() {
+    const nextScore = endlessScore + 1;
+    setEndlessScore(nextScore);
+    if (nextScore > endlessHigh) {
+      setEndlessHigh(nextScore);
+      AsyncStorage.setItem(ENDLESS_KEY, String(nextScore)).catch(() => {});
+    }
+    if (hearts.count > 0) {
+      consumeHeart();
+      setEndlessConfig(getEndlessConfig(nextScore));
+    } else {
+      setEndlessConfig(null);
+      setScreen('stages');
+    }
+  }
+
   if (screen === 'game') {
-    const isChallenge = !!challengeConfig;
-    const gameStage   = isChallenge ? 0 : stage;
-    const gameCfg     = isChallenge ? challengeConfig : null;
+    const isChallenge = !!challengeConfig && !endlessConfig;
+    const isEndless   = !!endlessConfig;
+    const gameStage   = (isChallenge || isEndless) ? 0 : stage;
+    const gameCfg     = isEndless ? endlessConfig : isChallenge ? challengeConfig : null;
     return (
       <GameScreen
-        key={isChallenge ? 'challenge' : stage}
+        key={isEndless ? `endless-${endlessScore}` : isChallenge ? 'challenge' : stage}
         stage={gameStage}
         challengeOverride={gameCfg}
         bestStars={stageStars[gameStage] ?? 0}
         items={items}
         isFirstPlay={!tutorialDone && stage === 1}
         isChallenge={isChallenge}
+        isEndless={isEndless}
+        endlessScore={endlessScore}
+        endlessHigh={endlessHigh}
         colorblindMode={colorblind}
         onTutorialDone={handleTutorialDone}
-        onBack={() => { setChallengeConfig(null); setScreen('stages'); }}
+        onBack={() => { setChallengeConfig(null); setEndlessConfig(null); setScreen('stages'); }}
         onNext={() => {
+          if (isEndless) { handleEndlessAdvance(); return; }
           setChallengeConfig(null);
           if (!isChallenge && stage < TOTAL_STAGES && hearts.count > 0) {
             consumeHeart();
@@ -2602,9 +2686,11 @@ export default function App() {
             setScreen('stages');
           }
         }}
-        onStageComplete={isChallenge
-          ? (_, coins, stars) => handleChallengeComplete(coins, stars)
-          : handleStageComplete}
+        onStageComplete={
+          isEndless   ? (_, coins) => handleEndlessComplete(coins) :
+          isChallenge ? (_, coins, stars) => handleChallengeComplete(coins, stars) :
+          handleStageComplete
+        }
         onUseItem={handleUseItem}
         onBuyItem={handleBuyItem}
         hearts={hearts}
@@ -2625,7 +2711,9 @@ export default function App() {
         coins={coins}
         challengeDone={challengeDone}
         weekly={weekly}
+        endlessHigh={endlessHigh}
         onPlayChallenge={handlePlayChallenge}
+        onPlayEndless={handlePlayEndless}
         onAddHearts={addHearts}
         onSpendCoins={handleSpendCoins}
         onShowMissions={() => setShowMissions(true)}
