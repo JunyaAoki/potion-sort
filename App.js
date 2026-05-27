@@ -172,6 +172,8 @@ const ACHIEVEMENTS = [
   { id: 'challenge',    emoji: '🧪', title: 'チャレンジャー',    desc: 'デイリーチャレンジをクリア' },
   { id: 'no_hint',      emoji: '🧠', title: '頭脳明晰',          desc: 'ヒントなしでステージをクリア' },
   { id: 'speed_clear',  emoji: '⚡', title: 'スピードクリア',    desc: '最適手数ちょうどでクリア' },
+  { id: 'endless_1',    emoji: '♾️', title: 'エンドレス突入',    desc: 'エンドレスモードで1ステージクリア' },
+  { id: 'endless_10',   emoji: '🌌', title: '宇宙の錬金術師',    desc: 'エンドレスモードで10ステージクリア' },
 ];
 
 function getDailyChallengeConfig() {
@@ -192,13 +194,13 @@ function getDailyChallengeConfig() {
   return { colors, cap, empty, seed, dateStr: today };
 }
 const DAILY_REWARDS   = [
-  { day: 1, coins: 20,  hearts: 0 },
-  { day: 2, coins: 30,  hearts: 0 },
-  { day: 3, coins: 40,  hearts: 1 },
-  { day: 4, coins: 50,  hearts: 0 },
-  { day: 5, coins: 60,  hearts: 1 },
-  { day: 6, coins: 80,  hearts: 0 },
-  { day: 7, coins: 100, hearts: 3 },
+  { day: 1, coins: 25,  hearts: 0 },
+  { day: 2, coins: 35,  hearts: 0 },
+  { day: 3, coins: 50,  hearts: 1 },
+  { day: 4, coins: 60,  hearts: 0 },
+  { day: 5, coins: 80,  hearts: 1 },
+  { day: 6, coins: 100, hearts: 0 },
+  { day: 7, coins: 150, hearts: 3 },
 ];
 
 function getEndlessConfig(score) {
@@ -1033,7 +1035,7 @@ function WinOverlay({ moves, stage, stageColor, coinsEarned, prevBestStars, isEn
 
         {isEndless ? (
           <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#8B30E8' }]} onPress={onNext}>
-            <Text style={s.nextBtnTxt}>∞ 次のステージへ ({endlessScore + 2})</Text>
+            <Text style={s.nextBtnTxt}>∞ 次のポーションへ！</Text>
           </TouchableOpacity>
         ) : stage < TOTAL_STAGES ? (
           <TouchableOpacity style={[s.nextBtn, { backgroundColor: stageColor }]} onPress={onNext}>
@@ -2647,6 +2649,8 @@ export default function App() {
       setEndlessHigh(nextScore);
       AsyncStorage.setItem(ENDLESS_KEY, String(nextScore)).catch(() => {});
     }
+    if (nextScore >= 1)  unlockAchievement('endless_1');
+    if (nextScore >= 10) unlockAchievement('endless_10');
     if (hearts.count > 0) {
       consumeHeart();
       setEndlessConfig(getEndlessConfig(nextScore));
