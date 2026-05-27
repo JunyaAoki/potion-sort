@@ -171,6 +171,7 @@ const ACHIEVEMENTS = [
   { id: 'daily_7',      emoji: '🔥', title: '7日連続ログイン',   desc: '7日間連続でログイン' },
   { id: 'challenge',    emoji: '🧪', title: 'チャレンジャー',    desc: 'デイリーチャレンジをクリア' },
   { id: 'no_hint',      emoji: '🧠', title: '頭脳明晰',          desc: 'ヒントなしでステージをクリア' },
+  { id: 'no_undo',      emoji: '🎯', title: '一発クリア',        desc: 'やり直しなしでステージをクリア' },
   { id: 'speed_clear',  emoji: '⚡', title: 'スピードクリア',    desc: '最適手数ちょうどでクリア' },
   { id: 'endless_1',    emoji: '♾️', title: 'エンドレス突入',    desc: 'エンドレスモードで1ステージクリア' },
   { id: 'endless_10',   emoji: '🌌', title: '宇宙の錬金術師',    desc: 'エンドレスモードで10ステージクリア' },
@@ -1238,6 +1239,7 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
   const [coinsEarned, setCoinsEarned]   = useState(0);
   const [deadlocked, setDeadlocked]     = useState(false);
   const usedHintRef     = useRef(false);
+  const usedUndoRef     = useRef(false);
   const restartCountRef = useRef(0);
   const glowAnims       = useRef(Array.from({ length: tubes.length }, () => new Animated.Value(0))).current;
   const [floatingChecks, setFloatingChecks] = useState([]);
@@ -1373,7 +1375,7 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
         const coins      = Math.round(COIN_PER_STAR[starsWon] * stageMult * (isChallenge ? 2 : 1));
         setCoinsEarned(coins);
         setWon(true);
-        onStageComplete?.(stage, coins, starsWon, isChallenge, { noHint: !usedHintRef.current, exactOpt: totalMoves === optMoves });
+        onStageComplete?.(stage, coins, starsWon, isChallenge, { noHint: !usedHintRef.current, noUndo: !usedUndoRef.current, exactOpt: totalMoves === optMoves });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         playSound('win');
       } else if (isDeadlocked(nt, cap)) {
@@ -1535,6 +1537,7 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
     if (won || isAnimating.current) return;
     if (items.undo <= 0) { setPurchaseType('undo'); return; }
     if (!history.length) return;
+    usedUndoRef.current = true;
     onUseItem('undo');
     const prev = history.at(-1);
     completedRef.current = prev.filter(
@@ -1597,6 +1600,7 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
 
   function restart() {
     usedHintRef.current = false;
+    usedUndoRef.current = false;
     glowAnims.forEach(a => a.setValue(0));
     setFloatingChecks([]);
     tiltAnims.forEach(a => a.setValue(0));
@@ -2117,7 +2121,7 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
         </View>
 
         {/* ── Vertical stage map ── */}
-        <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
+        <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} removeClippedSubviews contentContainerStyle={{ paddingBottom: 32 }}>
 
           {/* Title */}
           <View style={{ alignItems: 'center', paddingVertical: 16 }}>
@@ -2292,7 +2296,7 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
                   backgroundColor: 'rgba(245,197,24,0.12)', paddingHorizontal: 16, paddingVertical: 8,
                   borderRadius: 16, borderWidth: 1, borderColor: 'rgba(245,197,24,0.35)' }}>
                   <Text style={{ fontSize: 18 }}>🪙</Text>
-                  <Text style={{ fontSize: 18, fontWeight: '900', color: '#F5C518' }}>{coins} コイン</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '900', color: '#F5C518' }}>{fmtCoins(coins)} コイン</Text>
                 </View>
                 <TouchableOpacity
                   style={[s.nextBtn, { backgroundColor: coins >= HEART_COIN_COST ? '#8B30E8' : '#AAA' }]}
@@ -2467,6 +2471,7 @@ export default function App() {
     if (isChallenge)           unlockAchievement('challenge');
     if (streak >= 7)           unlockAchievement('daily_7');
     if (flags.noHint)          unlockAchievement('no_hint');
+    if (flags.noUndo)          unlockAchievement('no_undo');
     if (flags.exactOpt)        unlockAchievement('speed_clear');
   }
 
@@ -2539,13 +2544,17 @@ export default function App() {
       setTimeout(() => Alert.alert(title, msg, [{ text: 'OK' }]), 800);
     }
     updateWeeklyProgress(stars, isChallenge, flags);
-    setClearedStages(prev => {
-      const next = new Set(prev);
-      next.add(stageNum);
-      saveProgress(next);
-      checkAchievements(next, stars, isChallenge, dailyBonus?.streak ?? 0, flags);
-      return next;
-    });
+    if (stageNum > 0) {
+      setClearedStages(prev => {
+        const next = new Set(prev);
+        next.add(stageNum);
+        saveProgress(next);
+        checkAchievements(next, stars, isChallenge, dailyBonus?.streak ?? 0, flags);
+        return next;
+      });
+    } else {
+      checkAchievements(clearedStages, stars, isChallenge, dailyBonus?.streak ?? 0, flags);
+    }
   }
 
   function updateWeeklyProgress(stars, isChallenge, flags = {}) {
