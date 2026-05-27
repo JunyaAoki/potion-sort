@@ -881,9 +881,7 @@ function WeeklyMissionsModal({ weekly, coins, onClaim, onClose }) {
 // ── Win Overlay ────────────────────────────────────────────
 const SPARKLE_EMOJIS = ['⭐','✨','💫','🌟','⚡','💛','🔆','🌠'];
 
-function WinOverlay({ moves, stage, stageColor, coinsEarned, prevBestStars, isEndless, endlessScore, onNext, onReplay }) {
-  const cfg      = getStageConfig(stage);
-  const optMoves = cfg.colors * cfg.cap;
+function WinOverlay({ moves, stage, stageColor, coinsEarned, optMoves, prevBestStars, isEndless, endlessScore, onNext, onReplay }) {
   const stars    = moves <= optMoves ? 3 : moves <= optMoves * 1.7 ? 2 : 1;
   const isNewRecord = stars > (prevBestStars ?? 0);
   const scale    = useRef(new Animated.Value(0.5)).current;
@@ -1816,6 +1814,7 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
         <WinOverlay
           moves={moves} stage={stage} stageColor={stageColor}
           coinsEarned={coinsEarned}
+          optMoves={colors * cap}
           prevBestStars={bestStars}
           isEndless={isEndless} endlessScore={endlessScore}
           onNext={onNext} onReplay={restart}
@@ -2082,12 +2081,18 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
           backgroundColor: 'rgba(10,6,30,0.78)',
           borderBottomWidth: 1, borderBottomColor: 'rgba(180,140,55,0.3)',
         }}>
-          <View style={{ alignItems: 'center', minWidth: 48 }}>
-            <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.6)', letterSpacing: 2, fontWeight: '700' }}>STAGE</Text>
-            <Text style={{ fontSize: 16, fontWeight: '900', color: '#E8D8A0' }}>
-              {Math.min(nextStage, TOTAL_STAGES)}<Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.5)' }}>/{TOTAL_STAGES}</Text>
+          <TouchableOpacity
+            onPress={() => nextStage <= TOTAL_STAGES ? handleCellPress(Math.min(nextStage, TOTAL_STAGES)) : null}
+            style={{ alignItems: 'center', minWidth: 60, paddingHorizontal: 6, paddingVertical: 4,
+              borderRadius: 12, backgroundColor: nextStage <= TOTAL_STAGES ? 'rgba(139,48,232,0.25)' : 'transparent',
+              borderWidth: nextStage <= TOTAL_STAGES ? 1 : 0, borderColor: 'rgba(139,48,232,0.5)' }}>
+            <Text style={{ fontSize: 9, color: 'rgba(200,180,255,0.6)', letterSpacing: 2, fontWeight: '700' }}>
+              {nextStage <= TOTAL_STAGES ? '▶ PLAY' : 'STAGE'}
             </Text>
-          </View>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: '#E8D8A0' }}>
+              {Math.min(nextStage, TOTAL_STAGES)}<Text style={{ fontSize: 9, color: 'rgba(200,180,255,0.5)' }}>/{TOTAL_STAGES}</Text>
+            </Text>
+          </TouchableOpacity>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4,
             backgroundColor: 'rgba(245,197,24,0.15)', paddingHorizontal: 10, paddingVertical: 5,
             borderRadius: 14, borderWidth: 1, borderColor: 'rgba(245,197,24,0.35)' }}>
@@ -2122,10 +2127,15 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
             </Text>
             <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.6)', letterSpacing: 3, marginTop: 3 }}>✦ LIQUID PUZZLE ✦</Text>
             {clearedStages.size > 0 && (
-              <View style={{ alignItems: 'center', marginTop: 8, width: SW * 0.6 }}>
-                <Text style={{ fontSize: 11, color: 'rgba(220,200,255,0.5)', marginBottom: 4 }}>
-                  {clearedStages.size} / {TOTAL_STAGES} ステージクリア
-                </Text>
+              <View style={{ alignItems: 'center', marginTop: 8, width: SW * 0.65 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 4 }}>
+                  <Text style={{ fontSize: 11, color: 'rgba(220,200,255,0.5)' }}>
+                    {clearedStages.size} / {TOTAL_STAGES} ステージ
+                  </Text>
+                  <Text style={{ fontSize: 11, color: 'rgba(245,197,24,0.7)' }}>
+                    ★ {Object.values(stageStars).reduce((a, b) => a + b, 0)} / {TOTAL_STAGES * 3}
+                  </Text>
+                </View>
                 <View style={{ width: '100%', height: 5, backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 3 }}>
                   <View style={{
                     width: `${Math.min(100, (clearedStages.size / TOTAL_STAGES) * 100)}%`,
