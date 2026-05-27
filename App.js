@@ -195,13 +195,13 @@ function getDailyChallengeConfig() {
   return { colors, cap, empty, seed, dateStr: today };
 }
 const DAILY_REWARDS   = [
-  { day: 1, coins: 25,  hearts: 0 },
-  { day: 2, coins: 35,  hearts: 0 },
-  { day: 3, coins: 50,  hearts: 1 },
-  { day: 4, coins: 60,  hearts: 0 },
-  { day: 5, coins: 80,  hearts: 1 },
-  { day: 6, coins: 100, hearts: 0 },
-  { day: 7, coins: 150, hearts: 3 },
+  { day: 1, coins: 25,  hearts: 0, hints: 0, undos: 0 },
+  { day: 2, coins: 35,  hearts: 0, hints: 1, undos: 0 },
+  { day: 3, coins: 50,  hearts: 1, hints: 0, undos: 1 },
+  { day: 4, coins: 60,  hearts: 0, hints: 2, undos: 0 },
+  { day: 5, coins: 80,  hearts: 1, hints: 0, undos: 2 },
+  { day: 6, coins: 100, hearts: 0, hints: 2, undos: 2 },
+  { day: 7, coins: 150, hearts: 3, hints: 3, undos: 3 },
 ];
 
 function getEndlessConfig(score) {
@@ -573,14 +573,26 @@ function DailyBonusModal({ streak, reward, onClaim }) {
           <View style={{ alignItems: 'center', gap: 6 }}>
             <Text style={{ fontSize: 13, color: GREY }}>{streak}日目のボーナス</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10,
-              backgroundColor: 'rgba(245,197,24,0.12)', paddingHorizontal: 24, paddingVertical: 12,
+              backgroundColor: 'rgba(245,197,24,0.12)', paddingHorizontal: 20, paddingVertical: 12,
               borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(245,197,24,0.4)' }}>
               <Text style={{ fontSize: 26 }}>🪙</Text>
-              <Text style={{ fontSize: 30, fontWeight: '900', color: '#F5C518' }}>+{displayCoins}</Text>
+              <Text style={{ fontSize: 28, fontWeight: '900', color: '#F5C518' }}>+{displayCoins}</Text>
               {reward.hearts > 0 && (
                 <>
-                  <Text style={{ fontSize: 20, color: GREY }}>＋</Text>
-                  <Text style={{ fontSize: 22 }}>{'❤️'.repeat(reward.hearts)}</Text>
+                  <Text style={{ fontSize: 18, color: GREY }}>＋</Text>
+                  <Text style={{ fontSize: 20 }}>{'❤️'.repeat(reward.hearts)}</Text>
+                </>
+              )}
+              {(reward.hints ?? 0) > 0 && (
+                <>
+                  <Text style={{ fontSize: 18, color: GREY }}>＋</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: '#E8D8A0' }}>💡×{reward.hints}</Text>
+                </>
+              )}
+              {(reward.undos ?? 0) > 0 && (
+                <>
+                  <Text style={{ fontSize: 18, color: GREY }}>＋</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: '#E8D8A0' }}>↩×{reward.undos}</Text>
                 </>
               )}
             </View>
@@ -2442,6 +2454,15 @@ export default function App() {
       return next;
     });
     if (dailyBonus.reward.hearts > 0) addHearts(dailyBonus.reward.hearts);
+    const hints = dailyBonus.reward.hints ?? 0;
+    const undos = dailyBonus.reward.undos ?? 0;
+    if (hints > 0 || undos > 0) {
+      setItems(prev => {
+        const next = { hint: prev.hint + hints, undo: prev.undo + undos };
+        saveItems(next);
+        return next;
+      });
+    }
     if (dailyBonus.streak >= 7) unlockAchievement('daily_7');
     setDailyBonus(null);
   }
