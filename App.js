@@ -172,6 +172,7 @@ const ACHIEVEMENTS = [
   { id: 'challenge',    emoji: '🧪', title: 'チャレンジャー',    desc: 'デイリーチャレンジをクリア' },
   { id: 'no_hint',      emoji: '🧠', title: '頭脳明晰',          desc: 'ヒントなしでステージをクリア' },
   { id: 'no_undo',      emoji: '🎯', title: '一発クリア',        desc: 'やり直しなしでステージをクリア' },
+  { id: 'pure_clear',   emoji: '💎', title: '純粋な才能',        desc: 'ヒント・やり直しなしでクリア' },
   { id: 'speed_clear',  emoji: '⚡', title: 'スピードクリア',    desc: '最適手数ちょうどでクリア' },
   { id: 'endless_1',    emoji: '♾️', title: 'エンドレス突入',    desc: 'エンドレスモードで1ステージクリア' },
   { id: 'endless_10',   emoji: '🌌', title: '宇宙の錬金術師',    desc: 'エンドレスモードで10ステージクリア' },
@@ -1387,7 +1388,11 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
         const coins      = Math.round(COIN_PER_STAR[starsWon] * stageMult * (isChallenge ? 2 : 1));
         setCoinsEarned(coins);
         setWon(true);
-        onStageComplete?.(stage, coins, starsWon, isChallenge, { noHint: !usedHintRef.current, noUndo: !usedUndoRef.current, exactOpt: totalMoves === optMoves });
+        onStageComplete?.(stage, coins, starsWon, isChallenge, {
+          noHint: !usedHintRef.current,
+          noUndo: !usedUndoRef.current,
+          exactOpt: totalMoves === optMoves,
+        });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         playSound('win');
       } else if (isDeadlocked(nt, cap)) {
@@ -1850,7 +1855,17 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
           type={purchaseType}
           onClose={() => setPurchaseType(null)}
           onWatchAd={() => { setPurchaseType(null); onBuyItem(purchaseType, 3, 'ad'); }}
-          onBuy={() => { setPurchaseType(null); onBuyItem(purchaseType, 10, 'iap'); }}
+          onBuy={() => {
+            setPurchaseType(null);
+            Alert.alert(
+              '🏪 コインショップ',
+              'マップのショップでコインを購入してアイテムと交換できます。マップに戻りますか？',
+              [
+                { text: 'マップへ', onPress: onBack },
+                { text: 'あとで', style: 'cancel' },
+              ]
+            );
+          }}
         />
       )}
 
@@ -2491,9 +2506,10 @@ export default function App() {
     if (stars === 3)           unlockAchievement('perfect');
     if (isChallenge)           unlockAchievement('challenge');
     if (streak >= 7)           unlockAchievement('daily_7');
-    if (flags.noHint)          unlockAchievement('no_hint');
-    if (flags.noUndo)          unlockAchievement('no_undo');
-    if (flags.exactOpt)        unlockAchievement('speed_clear');
+    if (flags.noHint)               unlockAchievement('no_hint');
+    if (flags.noUndo)               unlockAchievement('no_undo');
+    if (flags.noHint && flags.noUndo) unlockAchievement('pure_clear');
+    if (flags.exactOpt)             unlockAchievement('speed_clear');
   }
 
   function saveHearts(h) {
