@@ -1606,7 +1606,7 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
         const coinsWon2  = Math.round(COIN_PER_STAR[starsWon2] * stageMult2 * (isChallenge ? 2 : 1));
         setCoinsEarned(coinsWon2);
         setWon(true);
-        onStageComplete?.(stage, coinsWon2, starsWon2, isChallenge, { noHint: false, exactOpt: false });
+        onStageComplete?.(stage, coinsWon2, starsWon2, isChallenge, { noHint: false, noUndo: !usedUndoRef.current, exactOpt: false });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         playSound('win');
       }
@@ -2675,11 +2675,11 @@ export default function App() {
     setScreen('game');
   }
 
-  function handleChallengeComplete(coinsWon, stars) {
+  function handleChallengeComplete(coinsWon, stars, flags = {}) {
     const today = new Date().toISOString().slice(0, 10);
     AsyncStorage.setItem(CHALLENGE_KEY, JSON.stringify({ date: today })).catch(() => {});
     setChallengeDone(true);
-    handleStageComplete(0, coinsWon, stars, true);
+    handleStageComplete(0, coinsWon, stars, true, flags);
   }
 
   function handlePlayEndless() {
@@ -2748,7 +2748,7 @@ export default function App() {
         }}
         onStageComplete={
           isEndless   ? (_, coins) => handleEndlessComplete(coins) :
-          isChallenge ? (_, coins, stars) => handleChallengeComplete(coins, stars) :
+          isChallenge ? (_, coins, stars, _isChall, flags) => handleChallengeComplete(coins, stars, flags) :
           handleStageComplete
         }
         onUseItem={handleUseItem}
