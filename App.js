@@ -65,11 +65,11 @@ const TIERS = [
   { colors: 11, cap: 6, empty: 1 },  // 141-145
   { colors: 12, cap: 6, empty: 1 },  // 146-150
   // ── ultimate series (stages 151-200) ──
-  { colors: 9,  cap: 6, empty: 1 },  // 151-155
-  { colors: 10, cap: 6, empty: 1 },  // 156-160
-  { colors: 10, cap: 6, empty: 1 },  // 161-165
-  { colors: 11, cap: 6, empty: 1 },  // 166-170
-  { colors: 11, cap: 6, empty: 1 },  // 171-175
+  { colors: 11, cap: 6, empty: 1 },  // 151-155
+  { colors: 12, cap: 6, empty: 1 },  // 156-160
+  { colors: 12, cap: 6, empty: 1 },  // 161-165
+  { colors: 12, cap: 6, empty: 1 },  // 166-170
+  { colors: 12, cap: 6, empty: 1 },  // 171-175
   { colors: 12, cap: 6, empty: 1 },  // 176-180
   { colors: 12, cap: 6, empty: 1 },  // 181-185
   { colors: 12, cap: 6, empty: 1 },  // 186-190
@@ -1692,11 +1692,19 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
               🏆 BEST: {endlessHigh}
             </Text>
           ) : !isChallenge && empty === 1 ? (
-            <Text style={{ fontSize: 10, color: '#E84343', fontWeight: '800', letterSpacing: 1 }}>
-              🔥 EXTREME
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <Text style={{ fontSize: 10, color: stageColor, fontWeight: '800', letterSpacing: 1 }}>
+                {BANDS[Math.min(Math.floor((stage - 1) / 10), BANDS.length - 1)].name}
+              </Text>
+              <Text style={{ fontSize: 10, color: '#E84343', fontWeight: '800', letterSpacing: 1 }}>
+                🔥 EXTREME
+              </Text>
+            </View>
           ) : !isChallenge ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <Text style={{ fontSize: 10, color: stageColor, fontWeight: '800', letterSpacing: 1 }}>
+                {BANDS[Math.min(Math.floor((stage - 1) / 10), BANDS.length - 1)].name}
+              </Text>
               <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.55)', fontWeight: '600' }}>
                 ★3目標 {colors * cap}手
               </Text>
