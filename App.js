@@ -17,6 +17,11 @@ import {
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
+// ── Haptics wrapper (respects in-app haptics toggle) ──────
+let _hapticsOn = true;
+function hapticImpact(style)       { if (_hapticsOn) Haptics.impactAsync(style).catch(() => {}); }
+function hapticNotification(type)  { if (_hapticsOn) Haptics.notificationAsync(type).catch(() => {}); }
+
 // ── Palette ────────────────────────────────────────────────
 const PALETTE = [
   '#E84343','#2F7BF0','#27C757','#F57C00',
@@ -124,6 +129,7 @@ const WEEKLY_KEY      = 'ballsort_weekly_v1';
 const ENDLESS_KEY     = 'ballsort_endless_v1';
 const BGM_KEY         = 'ballsort_bgm_v1';
 const SFX_KEY         = 'ballsort_sfx_v1';
+const HAPTICS_KEY     = 'ballsort_haptics_v1';
 const COLORBLIND_KEY  = 'ballsort_colorblind_v1';
 const STARS_KEY       = 'ballsort_stars_v1';
 
@@ -743,7 +749,7 @@ function ToggleRow({ label, desc, value, onToggle }) {
 }
 
 // ── Settings Modal ─────────────────────────────────────────
-function SettingsModal({ bgmOn, sfxOn, colorblind, onToggleBGM, onToggleSFX, onToggleColorblind, onClose }) {
+function SettingsModal({ bgmOn, sfxOn, hapticsOn, colorblind, onToggleBGM, onToggleSFX, onToggleHaptics, onToggleColorblind, onClose }) {
   const scale = useRef(new Animated.Value(0.85)).current;
   useEffect(() => {
     Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
@@ -756,6 +762,7 @@ function SettingsModal({ bgmOn, sfxOn, colorblind, onToggleBGM, onToggleSFX, onT
           <Text style={[s.winTitle, { fontSize: 20, marginBottom: 8 }]}>設定</Text>
           <ToggleRow label="🎵 BGM" desc="バックグラウンド音楽" value={bgmOn} onToggle={onToggleBGM} />
           <ToggleRow label="🔔 効果音" desc="ゲーム内効果音のオン/オフ" value={sfxOn} onToggle={onToggleSFX} />
+          <ToggleRow label="📳 バイブレーション" desc="タップ時の振動フィードバック" value={hapticsOn} onToggle={onToggleHaptics} />
           <ToggleRow label="♿ 色覚サポート" desc="各チューブに識別記号を表示" value={colorblind} onToggle={onToggleColorblind} />
           <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY, marginTop: 12 }]} onPress={onClose}>
             <Text style={s.nextBtnTxt}>閉じる</Text>
@@ -1344,7 +1351,7 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
   }, [selected]);
 
   function shake(idx) {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+    hapticNotification(Haptics.NotificationFeedbackType.Error);
     playSound('error');
     Animated.sequence([
       Animated.timing(shakeAnims[idx], { toValue: 10,  duration: 55, useNativeDriver: true }),
@@ -1369,7 +1376,7 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
     if (won || isAnimating.current) return;
     if (selected === null) {
       if (!tubes[idx].length) { shake(idx); return; }
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      hapticImpact(Haptics.ImpactFeedbackStyle.Light);
       playSound('select');
       setSelected(idx);
       return;
@@ -1408,7 +1415,7 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
       drainAnim.setValue(0);
       fillAnim.setValue(0);
       setPourInfo(null);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
       setTubes(nt);
       setMoves(m => m + 1);
       bounce(toIdx);
@@ -1433,15 +1440,15 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
           noUndo: !usedUndoRef.current,
           exactOpt: totalMoves === optMoves,
         });
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        hapticNotification(Haptics.NotificationFeedbackType.Success);
         playSound('win');
       } else if (isDeadlocked(nt, cap)) {
         setDeadlocked(true);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+        hapticNotification(Haptics.NotificationFeedbackType.Warning);
         playSound('error');
       } else if (justCompleted) {
         playSound(`complete${Math.min(newCompleted, 9)}`);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+        hapticImpact(Haptics.ImpactFeedbackStyle.Heavy);
         // Find which specific tubes just completed → trigger glow + floating badge
         const newlyDoneIdxs = nt
           .map((t, ti) => ti)
@@ -1647,7 +1654,7 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
         setCoinsEarned(coinsWon2);
         setWon(true);
         onStageComplete?.(stage, coinsWon2, starsWon2, isChallenge, { noHint: false, noUndo: !usedUndoRef.current, exactOpt: false });
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        hapticNotification(Haptics.NotificationFeedbackType.Success);
         playSound('win');
       }
     } else {
@@ -2458,6 +2465,7 @@ export default function App() {
   const [showMissions, setShowMissions]   = useState(false);
   const [bgmOn, setBgmOn]                 = useState(true);
   const [sfxOn, setSfxOn]                 = useState(true);
+  const [hapticsOn, setHapticsOn]         = useState(true);
   const [colorblind, setColorblind]       = useState(false);
   const [showSettings, setShowSettings]   = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
@@ -2481,10 +2489,11 @@ export default function App() {
       AsyncStorage.getItem(WEEKLY_KEY),
       AsyncStorage.getItem(BGM_KEY),
       AsyncStorage.getItem(SFX_KEY),
+      AsyncStorage.getItem(HAPTICS_KEY),
       AsyncStorage.getItem(COLORBLIND_KEY),
       AsyncStorage.getItem(STARS_KEY),
       AsyncStorage.getItem(ENDLESS_KEY),
-    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawSfx, rawCb, rawSt, rawEl]) => {
+    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawSfx, rawHap, rawCb, rawSt, rawEl]) => {
       if (rawP) setClearedStages(new Set(JSON.parse(rawP)));
       if (rawI) setItems(JSON.parse(rawI));
       if (!rawT) setTutorialDone(false);
@@ -2527,6 +2536,9 @@ export default function App() {
       const sfxSaved = rawSfx !== null ? rawSfx === '1' : true;
       setSfxOn(sfxSaved);
       setSFXEnabled(sfxSaved);
+      const hapSaved = rawHap !== null ? rawHap === '1' : true;
+      setHapticsOn(hapSaved);
+      _hapticsOn = hapSaved;
       if (rawCb === '1') setColorblind(true);
       if (rawSt) setStageStars(JSON.parse(rawSt));
       if (rawEl) setEndlessHigh(Number(rawEl));
@@ -2725,6 +2737,13 @@ export default function App() {
     AsyncStorage.setItem(SFX_KEY, next ? '1' : '0').catch(() => {});
   }
 
+  function toggleHaptics() {
+    const next = !hapticsOn;
+    setHapticsOn(next);
+    _hapticsOn = next;
+    AsyncStorage.setItem(HAPTICS_KEY, next ? '1' : '0').catch(() => {});
+  }
+
   function toggleColorblind() {
     const next = !colorblind;
     setColorblind(next);
@@ -2908,9 +2927,11 @@ export default function App() {
         <SettingsModal
           bgmOn={bgmOn}
           sfxOn={sfxOn}
+          hapticsOn={hapticsOn}
           colorblind={colorblind}
           onToggleBGM={toggleBGM}
           onToggleSFX={toggleSFX}
+          onToggleHaptics={toggleHaptics}
           onToggleColorblind={toggleColorblind}
           onClose={() => setShowSettings(false)}
         />
