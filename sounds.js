@@ -21,6 +21,7 @@ const BGM_SRC = require('./assets/bgm.wav');
 const cache = {};
 let bgmSound   = null;
 let bgmEnabled = true;
+let sfxEnabled = true;
 
 export async function initSounds() {
   try {
@@ -61,7 +62,11 @@ export function setBGMEnabled(val) {
 
 export function isBGMEnabled() { return bgmEnabled; }
 
+export function setSFXEnabled(val) { sfxEnabled = val; }
+export function isSFXEnabled()     { return sfxEnabled; }
+
 export async function playSound(key) {
+  if (!sfxEnabled) return;
   try {
     const s = cache[key];
     if (!s) return;

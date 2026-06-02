@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { initSounds, playSound, playBGM, pauseBGM, setBGMEnabled, isBGMEnabled } from './sounds';
+import { initSounds, playSound, playBGM, pauseBGM, setBGMEnabled, isBGMEnabled, setSFXEnabled } from './sounds';
 import { loadRewarded, showRewarded, loadInterstitial, showInterstitial, BannerAd, BannerAdSize, AD_IDS } from './ads';
 import * as StoreReview from 'expo-store-review';
 import {
@@ -123,6 +123,7 @@ const ACHIEVE_KEY     = 'ballsort_achieve_v1';
 const WEEKLY_KEY      = 'ballsort_weekly_v1';
 const ENDLESS_KEY     = 'ballsort_endless_v1';
 const BGM_KEY         = 'ballsort_bgm_v1';
+const SFX_KEY         = 'ballsort_sfx_v1';
 const COLORBLIND_KEY  = 'ballsort_colorblind_v1';
 const STARS_KEY       = 'ballsort_stars_v1';
 
@@ -742,7 +743,7 @@ function ToggleRow({ label, desc, value, onToggle }) {
 }
 
 // ── Settings Modal ─────────────────────────────────────────
-function SettingsModal({ bgmOn, colorblind, onToggleBGM, onToggleColorblind, onClose }) {
+function SettingsModal({ bgmOn, sfxOn, colorblind, onToggleBGM, onToggleSFX, onToggleColorblind, onClose }) {
   const scale = useRef(new Animated.Value(0.85)).current;
   useEffect(() => {
     Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
@@ -754,6 +755,7 @@ function SettingsModal({ bgmOn, colorblind, onToggleBGM, onToggleColorblind, onC
           <Text style={{ fontSize: 36 }}>⚙️</Text>
           <Text style={[s.winTitle, { fontSize: 20, marginBottom: 8 }]}>設定</Text>
           <ToggleRow label="🎵 BGM" desc="バックグラウンド音楽" value={bgmOn} onToggle={onToggleBGM} />
+          <ToggleRow label="🔔 効果音" desc="ゲーム内効果音のオン/オフ" value={sfxOn} onToggle={onToggleSFX} />
           <ToggleRow label="♿ 色覚サポート" desc="各チューブに識別記号を表示" value={colorblind} onToggle={onToggleColorblind} />
           <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY, marginTop: 12 }]} onPress={onClose}>
             <Text style={s.nextBtnTxt}>閉じる</Text>
@@ -2398,6 +2400,7 @@ export default function App() {
   const [weekly, setWeekly]               = useState(initWeeklyProgress);
   const [showMissions, setShowMissions]   = useState(false);
   const [bgmOn, setBgmOn]                 = useState(true);
+  const [sfxOn, setSfxOn]                 = useState(true);
   const [colorblind, setColorblind]       = useState(false);
   const [showSettings, setShowSettings]   = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
@@ -2420,10 +2423,11 @@ export default function App() {
       AsyncStorage.getItem(CHALLENGE_KEY),
       AsyncStorage.getItem(WEEKLY_KEY),
       AsyncStorage.getItem(BGM_KEY),
+      AsyncStorage.getItem(SFX_KEY),
       AsyncStorage.getItem(COLORBLIND_KEY),
       AsyncStorage.getItem(STARS_KEY),
       AsyncStorage.getItem(ENDLESS_KEY),
-    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawCb, rawSt, rawEl]) => {
+    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawSfx, rawCb, rawSt, rawEl]) => {
       if (rawP) setClearedStages(new Set(JSON.parse(rawP)));
       if (rawI) setItems(JSON.parse(rawI));
       if (!rawT) setTutorialDone(false);
@@ -2459,10 +2463,13 @@ export default function App() {
         const w = JSON.parse(rawW);
         setWeekly(w.weekKey === thisWeek ? w : initWeeklyProgress());
       }
-      // BGM設定
+      // BGM / SFX設定
       const bgmSaved = rawBgm !== null ? rawBgm === '1' : true;
       setBgmOn(bgmSaved);
       setBGMEnabled(bgmSaved);
+      const sfxSaved = rawSfx !== null ? rawSfx === '1' : true;
+      setSfxOn(sfxSaved);
+      setSFXEnabled(sfxSaved);
       if (rawCb === '1') setColorblind(true);
       if (rawSt) setStageStars(JSON.parse(rawSt));
       if (rawEl) setEndlessHigh(Number(rawEl));
@@ -2654,6 +2661,13 @@ export default function App() {
     AsyncStorage.setItem(BGM_KEY, next ? '1' : '0').catch(() => {});
   }
 
+  function toggleSFX() {
+    const next = !sfxOn;
+    setSfxOn(next);
+    setSFXEnabled(next);
+    AsyncStorage.setItem(SFX_KEY, next ? '1' : '0').catch(() => {});
+  }
+
   function toggleColorblind() {
     const next = !colorblind;
     setColorblind(next);
@@ -2836,8 +2850,10 @@ export default function App() {
       {showSettings && (
         <SettingsModal
           bgmOn={bgmOn}
+          sfxOn={sfxOn}
           colorblind={colorblind}
           onToggleBGM={toggleBGM}
+          onToggleSFX={toggleSFX}
           onToggleColorblind={toggleColorblind}
           onClose={() => setShowSettings(false)}
         />
