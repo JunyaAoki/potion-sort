@@ -1730,6 +1730,11 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
     }
   }
 
+  const stageMult = isEndless
+    ? (endlessScore >= 30 ? 3 : endlessScore >= 10 ? 2 : 1.5)
+    : isChallenge ? 2
+    : stage >= 151 ? 3 : stage >= 101 ? 2 : stage >= 51 ? 1.5 : 1;
+
   const rowData = rows === 1
     ? [Array.from({ length: N }, (_, i) => i)]
     : rows === 3
@@ -1802,6 +1807,12 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
           ) : null}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          {stageMult > 1 && (
+            <View style={{ backgroundColor: 'rgba(245,197,24,0.18)', paddingHorizontal: 7, paddingVertical: 3,
+              borderRadius: 10, borderWidth: 1, borderColor: 'rgba(245,197,24,0.5)' }}>
+              <Text style={{ fontSize: 10, color: '#F5C518', fontWeight: '900' }}>🪙×{stageMult}</Text>
+            </View>
+          )}
           <TouchableOpacity onPress={onToggleSound} style={s.miniIconBtn}>
             <Text style={{ fontSize: 16 }}>{bgmOn ? '🔊' : '🔇'}</Text>
           </TouchableOpacity>
@@ -2136,6 +2147,51 @@ function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandCo
         </TouchableOpacity>
       </Animated.View>
     </View>
+  );
+}
+
+// ── Endless Game Over Modal ────────────────────────────────
+function EndlessGameOverModal({ score, high, isRecord, hearts, coins, onRetry, onClose }) {
+  const scale = useRef(new Animated.Value(0.7)).current;
+  useEffect(() => {
+    Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
+  }, []);
+  return (
+    <Modal transparent animationType="fade">
+      <View style={s.overlay}>
+        <Animated.View style={[s.winCard, { transform: [{ scale }], gap: 10 }]}>
+          <Text style={{ fontSize: 52 }}>💀</Text>
+          <Text style={[s.winTitle, { fontSize: 24 }]}>エンドレス終了</Text>
+          <Text style={{ fontSize: 13, color: GREY, marginTop: -4 }}>ハートが切れました</Text>
+          <View style={{
+            backgroundColor: 'rgba(139,48,232,0.12)', borderRadius: 20,
+            paddingHorizontal: 28, paddingVertical: 14,
+            borderWidth: 1.5, borderColor: 'rgba(139,48,232,0.4)', alignItems: 'center', gap: 4,
+          }}>
+            <Text style={{ fontSize: 11, color: 'rgba(200,180,255,0.65)', fontWeight: '700', letterSpacing: 2 }}>SCORE</Text>
+            <Text style={{ fontSize: 44, fontWeight: '900', color: '#C97FFF' }}>{score}</Text>
+            <Text style={{ fontSize: 12, color: 'rgba(200,180,255,0.55)' }}>🏆 BEST: {high}</Text>
+          </View>
+          {isRecord && (
+            <View style={{ backgroundColor: '#E84343', paddingHorizontal: 16, paddingVertical: 6, borderRadius: 14 }}>
+              <Text style={{ fontSize: 13, color: '#fff', fontWeight: '900', letterSpacing: 1 }}>🏆 新記録！おめでとう！</Text>
+            </View>
+          )}
+          {hearts.count > 0 ? (
+            <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#8B30E8' }]} onPress={onRetry}>
+              <Text style={s.nextBtnTxt}>∞ もう一度チャレンジ（❤️×1）</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={{ fontSize: 12, color: GREY, textAlign: 'center' }}>
+              ❤️ ハートが回復したら再挑戦できます
+            </Text>
+          )}
+          <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY }]} onPress={onClose}>
+            <Text style={s.nextBtnTxt}>マップへ戻る</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
   );
 }
 
@@ -2488,6 +2544,7 @@ export default function App() {
   const [endlessScore, setEndlessScore]   = useState(0);
   const [endlessHigh, setEndlessHigh]     = useState(0);
   const [endlessConfig, setEndlessConfig] = useState(null);
+  const [endlessResult, setEndlessResult] = useState(null);
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -2868,6 +2925,8 @@ export default function App() {
       consumeHeart();
       setEndlessConfig(getEndlessConfig(nextScore));
     } else {
+      const hi = Math.max(nextScore, endlessHigh);
+      setEndlessResult({ score: nextScore, high: hi, isRecord: nextScore > endlessHigh });
       setEndlessConfig(null);
       setScreen('stages');
     }
@@ -2988,6 +3047,17 @@ export default function App() {
           totalStars={Object.values(stageStars).reduce((a, b) => a + b, 0)}
           endlessHigh={endlessHigh}
           onClose={() => setShowAchievements(false)}
+        />
+      )}
+      {endlessResult && (
+        <EndlessGameOverModal
+          score={endlessResult.score}
+          high={endlessResult.high}
+          isRecord={endlessResult.isRecord}
+          hearts={hearts}
+          coins={coins}
+          onRetry={() => { setEndlessResult(null); handlePlayEndless(); }}
+          onClose={() => setEndlessResult(null)}
         />
       )}
       {toastQueue.length > 0 && (
