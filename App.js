@@ -190,6 +190,10 @@ const ACHIEVEMENTS = [
   { id: 'endless_50',   emoji: '🌠', title: '伝説のポーション師',   desc: 'エンドレスモードで50ステージクリア' },
   { id: 'stars_100',    emoji: '🌟', title: '百星の錬金術師',      desc: 'ステージ合計100個の星を獲得' },
   { id: 'stars_300',    emoji: '💠', title: '三百星の覇者',        desc: 'ステージ合計300個の星を獲得' },
+  { id: 'endless_100',  emoji: '🪐', title: '時空の支配者',          desc: 'エンドレスモードで100ステージクリア' },
+  { id: 'moves_100',    emoji: '👐', title: '百手の職人',            desc: '合計100手を達成' },
+  { id: 'moves_500',    emoji: '🔮', title: '五百手の魔術師',        desc: '合計500手を達成' },
+  { id: 'moves_1000',   emoji: '⚗️', title: '千手の大錬金術師',      desc: '合計1000手を達成' },
 ];
 
 function getDailyChallengeConfig() {
@@ -2728,6 +2732,9 @@ export default function App() {
       setTotalMovesEver(prev => {
         const next = prev + flags.moves;
         AsyncStorage.setItem(MOVES_KEY, String(next)).catch(() => {});
+        if (prev < 100  && next >= 100)  unlockAchievement('moves_100');
+        if (prev < 500  && next >= 500)  unlockAchievement('moves_500');
+        if (prev < 1000 && next >= 1000) unlockAchievement('moves_1000');
         return next;
       });
     }
@@ -2930,10 +2937,11 @@ export default function App() {
       setEndlessHigh(nextScore);
       AsyncStorage.setItem(ENDLESS_KEY, String(nextScore)).catch(() => {});
     }
-    if (nextScore >= 1)  unlockAchievement('endless_1');
-    if (nextScore >= 10) unlockAchievement('endless_10');
-    if (nextScore >= 20) unlockAchievement('endless_20');
-    if (nextScore >= 50) unlockAchievement('endless_50');
+    if (nextScore >= 1)   unlockAchievement('endless_1');
+    if (nextScore >= 10)  unlockAchievement('endless_10');
+    if (nextScore >= 20)  unlockAchievement('endless_20');
+    if (nextScore >= 50)  unlockAchievement('endless_50');
+    if (nextScore >= 100) unlockAchievement('endless_100');
     if (hearts.count > 0) {
       consumeHeart();
       setEndlessConfig(getEndlessConfig(nextScore));
