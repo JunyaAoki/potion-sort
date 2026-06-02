@@ -1629,7 +1629,7 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
   function handleUndo() {
     if (won || isAnimating.current) return;
     if (items.undo <= 0) { setPurchaseType('undo'); return; }
-    if (!history.length) return;
+    if (!history.length) { hapticNotification(Haptics.NotificationFeedbackType.Warning); return; }
     usedUndoRef.current = true;
     onUseItem('undo');
     const prev = history.at(-1);
@@ -1835,15 +1835,21 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
         backgroundColor: 'rgba(10,6,30,0.75)', paddingHorizontal: 16, paddingBottom: 10, paddingTop: 6, gap: 10,
         borderBottomWidth: 1, borderBottomColor: 'rgba(180,140,55,0.25)',
       }}>
-        <TouchableOpacity
-          style={[s.itemBtn, { borderColor: items.undo > 0 ? stageColor : '#E84343', backgroundColor: 'rgba(255,255,255,0.08)' }]}
-          onPress={handleUndo}
-        >
-          <Text style={{ fontSize: 17 }}>↩</Text>
-          <Text style={{ fontSize: 13, fontWeight: '800', color: items.undo > 0 ? '#E8D8A0' : '#E84343' }}>
-            {items.undo}
-          </Text>
-        </TouchableOpacity>
+        {(() => {
+          const canUndo = items.undo > 0 && history.length > 0;
+          const undoColor = items.undo === 0 ? '#E84343' : !canUndo ? GREY : stageColor;
+          return (
+            <TouchableOpacity
+              style={[s.itemBtn, { borderColor: undoColor, backgroundColor: 'rgba(255,255,255,0.08)', opacity: items.undo > 0 && !canUndo ? 0.45 : 1 }]}
+              onPress={handleUndo}
+            >
+              <Text style={{ fontSize: 17 }}>↩</Text>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: undoColor }}>
+                {items.undo}
+              </Text>
+            </TouchableOpacity>
+          );
+        })()}
 
         <TouchableOpacity
           style={[s.itemBtn, { borderColor: items.hint > 0 ? stageColor : '#E84343', backgroundColor: 'rgba(255,255,255,0.08)' }]}
