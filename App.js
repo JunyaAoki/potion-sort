@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   Dimensions, SafeAreaView, StatusBar, Animated, Easing, Modal,
-  ImageBackground, Alert,
+  ImageBackground, Alert, Share,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
@@ -1141,9 +1141,20 @@ function WinOverlay({ moves, stage, stageColor, coinsEarned, optMoves, prevBestS
             <Text style={[s.nextBtnTxt, { color: '#1A1E2E' }]}>👑 全クリア！マップへ戻る</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY }]} onPress={onReplay}>
-          <Text style={s.nextBtnTxt}>🔄 もう一度</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8, width: '100%' }}>
+          <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY, flex: 1 }]} onPress={onReplay}>
+            <Text style={s.nextBtnTxt}>🔄 もう一度</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.nextBtn, { flex: 1, backgroundColor: 'rgba(47,123,240,0.22)', borderWidth: 1.5, borderColor: 'rgba(47,123,240,0.55)' }]}
+            onPress={() => {
+              const starsStr = '★'.repeat(stars) + '☆'.repeat(3 - stars);
+              const modeStr  = isEndless ? `エンドレス ${endlessScore + 1}ステージ` : isChallenge ? 'デイリーチャレンジ' : `ステージ ${stage}`;
+              Share.share({ message: `🧪 Potion Sort — ${modeStr} を ${starsStr} でクリア！\n#PotionSort #ポーションソート` }).catch(() => {});
+            }}>
+            <Text style={[s.nextBtnTxt, { color: '#6BAAFF' }]}>🔗 シェア</Text>
+          </TouchableOpacity>
+        </View>
       </Animated.View>
     </View>
   );
