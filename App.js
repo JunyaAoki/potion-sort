@@ -1345,11 +1345,19 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
   const [tutorialStep, setTutorialStep] = useState(isFirstPlay ? 1 : 0);
   const [coinsEarned, setCoinsEarned]   = useState(0);
   const [deadlocked, setDeadlocked]     = useState(false);
+  const [elapsed, setElapsed]           = useState(0);
+  const startTimeRef    = useRef(Date.now());
   const usedHintRef     = useRef(false);
   const usedUndoRef     = useRef(false);
   const restartCountRef = useRef(0);
   const glowAnims       = useRef(Array.from({ length: tubes.length }, () => new Animated.Value(0))).current;
   const [floatingChecks, setFloatingChecks] = useState([]);
+
+  useEffect(() => {
+    if (won) return;
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startTimeRef.current) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [won]);
 
   function advanceTutorial() {
     if (tutorialStep < TUTORIAL_STEPS.length) {
@@ -1715,6 +1723,8 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
   }
 
   function restart() {
+    startTimeRef.current = Date.now();
+    setElapsed(0);
     usedHintRef.current = false;
     usedUndoRef.current = false;
     glowAnims.forEach(a => a.setValue(0));
@@ -1892,6 +1902,10 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
         )}
 
         <View style={{ flex: 1 }} />
+
+        <Text style={{ fontSize: 11, color: 'rgba(200,180,255,0.45)', fontWeight: '600' }}>
+          {Math.floor(elapsed / 60).toString().padStart(2, '0')}:{(elapsed % 60).toString().padStart(2, '0')}
+        </Text>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: 4 }}>
           {(() => {
