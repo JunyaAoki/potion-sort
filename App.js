@@ -174,8 +174,12 @@ const ACHIEVEMENTS = [
   { id: 'no_undo',      emoji: '🎯', title: '一発クリア',        desc: 'やり直しなしでステージをクリア' },
   { id: 'pure_clear',   emoji: '💎', title: '純粋な才能',        desc: 'ヒント・やり直しなしでクリア' },
   { id: 'speed_clear',  emoji: '⚡', title: 'スピードクリア',    desc: '最適手数ちょうどでクリア' },
-  { id: 'endless_1',    emoji: '♾️', title: 'エンドレス突入',    desc: 'エンドレスモードで1ステージクリア' },
-  { id: 'endless_10',   emoji: '🌌', title: '宇宙の錬金術師',    desc: 'エンドレスモードで10ステージクリア' },
+  { id: 'endless_1',    emoji: '♾️', title: 'エンドレス突入',      desc: 'エンドレスモードで1ステージクリア' },
+  { id: 'endless_10',   emoji: '🌌', title: '宇宙の錬金術師',      desc: 'エンドレスモードで10ステージクリア' },
+  { id: 'endless_20',   emoji: '🚀', title: '無限の旅人',          desc: 'エンドレスモードで20ステージクリア' },
+  { id: 'endless_50',   emoji: '🌠', title: '伝説のポーション師',   desc: 'エンドレスモードで50ステージクリア' },
+  { id: 'stars_100',    emoji: '🌟', title: '百星の錬金術師',      desc: 'ステージ合計100個の星を獲得' },
+  { id: 'stars_300',    emoji: '💠', title: '三百星の覇者',        desc: 'ステージ合計300個の星を獲得' },
 ];
 
 function getDailyChallengeConfig() {
@@ -895,7 +899,7 @@ function WeeklyMissionsModal({ weekly, coins, onClaim, onClose }) {
 // ── Win Overlay ────────────────────────────────────────────
 const SPARKLE_EMOJIS = ['⭐','✨','💫','🌟','⚡','💛','🔆','🌠'];
 
-function WinOverlay({ moves, stage, stageColor, coinsEarned, optMoves, prevBestStars, isEndless, endlessScore, onNext, onReplay }) {
+function WinOverlay({ moves, stage, stageColor, coinsEarned, optMoves, prevBestStars, isEndless, isChallenge, endlessScore, onNext, onReplay }) {
   const stars    = moves <= optMoves ? 3 : moves <= optMoves * 1.7 ? 2 : 1;
   const isNewRecord = stars > (prevBestStars ?? 0);
   const scale    = useRef(new Animated.Value(0.5)).current;
@@ -1048,6 +1052,10 @@ function WinOverlay({ moves, stage, stageColor, coinsEarned, optMoves, prevBestS
         {isEndless ? (
           <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#8B30E8' }]} onPress={onNext}>
             <Text style={s.nextBtnTxt}>∞ 次のポーションへ！</Text>
+          </TouchableOpacity>
+        ) : isChallenge ? (
+          <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#F5C518' }]} onPress={onNext}>
+            <Text style={[s.nextBtnTxt, { color: '#1A1E2E' }]}>🗺 マップへ戻る</Text>
           </TouchableOpacity>
         ) : stage < TOTAL_STAGES ? (
           <TouchableOpacity style={[s.nextBtn, { backgroundColor: stageColor }]} onPress={onNext}>
@@ -1845,7 +1853,7 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
           coinsEarned={coinsEarned}
           optMoves={colors * cap}
           prevBestStars={bestStars}
-          isEndless={isEndless} endlessScore={endlessScore}
+          isEndless={isEndless} isChallenge={isChallenge} endlessScore={endlessScore}
           onNext={onNext} onReplay={restart}
         />
       )}
@@ -2502,7 +2510,7 @@ export default function App() {
     });
   }
 
-  function checkAchievements(clearedSet, stars, isChallenge, streak, flags = {}) {
+  function checkAchievements(clearedSet, stars, isChallenge, streak, flags = {}, totalStars = 0) {
     if (clearedSet.size >= 1)   unlockAchievement('first_clear');
     if (clearedSet.size >= 5)   unlockAchievement('clear_5');
     if (clearedSet.size >= 10)  unlockAchievement('clear_10');
@@ -2511,13 +2519,15 @@ export default function App() {
     if (clearedSet.size >= 100) unlockAchievement('clear_100');
     if (clearedSet.size >= 150) unlockAchievement('clear_150');
     if (clearedSet.size >= 200) unlockAchievement('clear_200');
-    if (stars === 3)           unlockAchievement('perfect');
-    if (isChallenge)           unlockAchievement('challenge');
-    if (streak >= 7)           unlockAchievement('daily_7');
-    if (flags.noHint)               unlockAchievement('no_hint');
-    if (flags.noUndo)               unlockAchievement('no_undo');
+    if (stars === 3)            unlockAchievement('perfect');
+    if (isChallenge)            unlockAchievement('challenge');
+    if (streak >= 7)            unlockAchievement('daily_7');
+    if (flags.noHint)                 unlockAchievement('no_hint');
+    if (flags.noUndo)                 unlockAchievement('no_undo');
     if (flags.noHint && flags.noUndo) unlockAchievement('pure_clear');
-    if (flags.exactOpt)             unlockAchievement('speed_clear');
+    if (flags.exactOpt)               unlockAchievement('speed_clear');
+    if (totalStars >= 100)      unlockAchievement('stars_100');
+    if (totalStars >= 300)      unlockAchievement('stars_300');
   }
 
   function saveHearts(h) {
@@ -2589,16 +2599,19 @@ export default function App() {
       setTimeout(() => Alert.alert(title, msg, [{ text: 'OK' }]), 800);
     }
     updateWeeklyProgress(stars, isChallenge, flags);
+    const prevStageStars = stageStars[stageNum] ?? 0;
+    const addedStars = !isChallenge && stageNum > 0 && stars > prevStageStars ? stars - prevStageStars : 0;
+    const totalStars = Object.values(stageStars).reduce((a, b) => a + b, 0) + addedStars;
     if (stageNum > 0) {
       setClearedStages(prev => {
         const next = new Set(prev);
         next.add(stageNum);
         saveProgress(next);
-        checkAchievements(next, stars, isChallenge, dailyBonus?.streak ?? 0, flags);
+        checkAchievements(next, stars, isChallenge, dailyBonus?.streak ?? 0, flags, totalStars);
         return next;
       });
     } else {
-      checkAchievements(clearedStages, stars, isChallenge, dailyBonus?.streak ?? 0, flags);
+      checkAchievements(clearedStages, stars, isChallenge, dailyBonus?.streak ?? 0, flags, totalStars);
     }
   }
 
@@ -2715,6 +2728,8 @@ export default function App() {
     }
     if (nextScore >= 1)  unlockAchievement('endless_1');
     if (nextScore >= 10) unlockAchievement('endless_10');
+    if (nextScore >= 20) unlockAchievement('endless_20');
+    if (nextScore >= 50) unlockAchievement('endless_50');
     if (hearts.count > 0) {
       consumeHeart();
       setEndlessConfig(getEndlessConfig(nextScore));
