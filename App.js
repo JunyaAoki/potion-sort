@@ -137,6 +137,7 @@ const STARS_KEY       = 'ballsort_stars_v1';
 const MOVES_KEY       = 'ballsort_moves_v1';
 const CLEARS_KEY      = 'ballsort_clears_v1';
 const FREE_HINT_KEY   = 'ballsort_free_hint_v1';
+const BEST_TIME_KEY   = 'ballsort_best_time_v1';
 
 // 色覚サポート用シンボル（色ごとに固有の記号）
 const CB_SYMBOLS = ['✕','◆','★','▲','●','■','♥','○','▼','✦','♦','♣'];
@@ -239,6 +240,12 @@ function getEndlessConfig(score) {
 function fmtCoins(n) {
   if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
   return String(n);
+}
+
+function fmtTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
 // ── Seeded PRNG (mulberry32) ───────────────────────────────
@@ -1506,6 +1513,7 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
           noUndo: !usedUndoRef.current,
           exactOpt: totalMoves === optMoves,
           moves: totalMoves,
+          time: Math.floor((Date.now() - startTimeRef.current) / 1000),
         });
         hapticNotification(Haptics.NotificationFeedbackType.Success);
         playSound('win');
@@ -1722,7 +1730,7 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
         const coinsWon2  = Math.round(COIN_PER_STAR[starsWon2] * stageMult2 * (isChallenge ? 2 : 1));
         setCoinsEarned(coinsWon2);
         setWon(true);
-        onStageComplete?.(stage, coinsWon2, starsWon2, isChallenge, { noHint: false, noUndo: !usedUndoRef.current, exactOpt: false, moves: totalMoves });
+        onStageComplete?.(stage, coinsWon2, starsWon2, isChallenge, { noHint: false, noUndo: !usedUndoRef.current, exactOpt: false, moves: totalMoves, time: Math.floor((Date.now() - startTimeRef.current) / 1000) });
         hapticNotification(Haptics.NotificationFeedbackType.Success);
         playSound('win');
       }
@@ -2136,7 +2144,7 @@ function buildMapLayout() {
 const MAP_LAYOUT = buildMapLayout();
 
 // ── Stage Map Node ─────────────────────────────────────────
-function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandColor, onPress, animIndex }) {
+function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandColor, bestTime, onPress, animIndex }) {
   const scale    = useRef(new Animated.Value(1)).current;
   const slideX   = useRef(new Animated.Value(side === 'left' ? -70 : 70)).current;
   const mountOp  = useRef(new Animated.Value(0)).current;
@@ -2208,7 +2216,7 @@ function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandCo
             </View>
           ) : (
             <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 22, fontWeight: '900', color: isCurrent ? '#fff' : '#E8D8A0', lineHeight: 28 }}>
+              <Text style={{ fontSize: 20, fontWeight: '900', color: isCurrent ? '#fff' : '#E8D8A0', lineHeight: 24 }}>
                 {num}
               </Text>
               <View style={{ flexDirection: 'row', gap: 2 }}>
@@ -2216,6 +2224,9 @@ function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandCo
                   <Text key={s} style={{ fontSize: 9, color: s <= stars ? '#F5C518' : 'rgba(255,255,255,0.13)' }}>★</Text>
                 ))}
               </View>
+              {isCleared && bestTime !== undefined && (
+                <Text style={{ fontSize: 7.5, color: 'rgba(255,255,255,0.45)', marginTop: 1 }}>⏱{fmtTime(bestTime)}</Text>
+              )}
             </View>
           )}
         </TouchableOpacity>
@@ -2302,7 +2313,7 @@ function EndlessGameOverModal({ score, high, isRecord, hearts, coins, onRetry, o
 const HEART_COIN_COST  = 30;
 const REFILL_COIN_COST = 100;
 
-function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, weekly, endlessHigh, onPlay, onPlayChallenge, onPlayEndless, onAddHearts, onSpendCoins, onShowMissions, onShowSettings, onShowAchievements }) {
+function StageSelect({ clearedStages, stageStars, stageBestTimes, hearts, coins, challengeDone, weekly, endlessHigh, onPlay, onPlayChallenge, onPlayEndless, onAddHearts, onSpendCoins, onShowMissions, onShowSettings, onShowAchievements }) {
   const nextStage = Math.min(TOTAL_STAGES + 1, clearedStages.size > 0 ? Math.max(...clearedStages) + 1 : 1);
   const [shopOpen, setShopOpen] = useState(false);
   const [noHearts, setNoHearts] = useState(false);
@@ -2471,6 +2482,7 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
                   isLocked={isLocked}
                   stars={stageStars[num] ?? 0}
                   bandColor={band.color}
+                  bestTime={stageBestTimes?.[num]}
                   onPress={() => handleCellPress(num)}
                   animIndex={idx}
                 />
@@ -2662,6 +2674,7 @@ export default function App() {
   const [totalClears, setTotalClears]       = useState(0);
   const [perfectStreak, setPerfectStreak]   = useState(0);
   const [freeHintDate, setFreeHintDate]     = useState(null);
+  const [stageBestTimes, setStageBestTimes] = useState({});
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -2685,7 +2698,8 @@ export default function App() {
       AsyncStorage.getItem(MOVES_KEY),
       AsyncStorage.getItem(CLEARS_KEY),
       AsyncStorage.getItem(FREE_HINT_KEY),
-    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawSfx, rawHap, rawCb, rawSt, rawEl, rawMv, rawCls, rawFH]) => {
+      AsyncStorage.getItem(BEST_TIME_KEY),
+    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawSfx, rawHap, rawCb, rawSt, rawEl, rawMv, rawCls, rawFH, rawBT]) => {
       if (rawP) setClearedStages(new Set(JSON.parse(rawP)));
       if (rawI) setItems(JSON.parse(rawI));
       if (!rawT) setTutorialDone(false);
@@ -2737,6 +2751,7 @@ export default function App() {
       if (rawMv)  setTotalMovesEver(Number(rawMv));
       if (rawCls) setTotalClears(Number(rawCls));
       if (rawFH)  setFreeHintDate(rawFH);
+      if (rawBT)  setStageBestTimes(JSON.parse(rawBT));
     }).catch(() => {});
     initSounds().then(() => playBGM());
     loadRewarded();
@@ -2858,6 +2873,17 @@ export default function App() {
   }
 
   function handleStageComplete(stageNum, coinsWon = 0, stars = 1, isChallenge = false, flags = {}) {
+    if (!isChallenge && stageNum > 0 && flags.time > 0) {
+      setStageBestTimes(prev => {
+        const current = prev[stageNum];
+        if (current === undefined || flags.time < current) {
+          const next = { ...prev, [stageNum]: flags.time };
+          AsyncStorage.setItem(BEST_TIME_KEY, JSON.stringify(next)).catch(() => {});
+          return next;
+        }
+        return prev;
+      });
+    }
     if (flags.moves > 0) {
       setTotalMovesEver(prev => {
         const next = prev + flags.moves;
@@ -3164,6 +3190,7 @@ export default function App() {
       <StageSelect
         clearedStages={clearedStages}
         stageStars={stageStars}
+        stageBestTimes={stageBestTimes}
         hearts={hearts}
         coins={coins}
         challengeDone={challengeDone}
