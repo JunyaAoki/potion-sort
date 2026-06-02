@@ -1866,6 +1866,15 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
           </Text>
         </TouchableOpacity>
 
+        {hearts && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2,
+            backgroundColor: 'rgba(232,67,67,0.12)', paddingHorizontal: 8, paddingVertical: 4,
+            borderRadius: 12, borderWidth: 1, borderColor: 'rgba(232,67,67,0.3)' }}>
+            <Text style={{ fontSize: 12 }}>❤️</Text>
+            <Text style={{ fontSize: 12, fontWeight: '900', color: hearts.count > 0 ? '#E84343' : '#888' }}>×{hearts.count}</Text>
+          </View>
+        )}
+
         <View style={{ flex: 1 }} />
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: 4 }}>
