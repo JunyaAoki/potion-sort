@@ -1016,8 +1016,14 @@ function WinOverlay({ moves, stage, stageColor, coinsEarned, optMoves, prevBestS
         <Text style={s.winEmoji}>🎉</Text>
         <Text style={s.winTitle}>クリア！</Text>
         {isNewRecord && (
-          <View style={{ backgroundColor: '#E84343', paddingHorizontal: 14, paddingVertical: 4, borderRadius: 12, marginTop: -4 }}>
-            <Text style={{ fontSize: 11, color: '#fff', fontWeight: '900', letterSpacing: 1 }}>🆕 NEW RECORD!</Text>
+          <View style={{ backgroundColor: '#E84343', paddingHorizontal: 14, paddingVertical: 4, borderRadius: 12, marginTop: -4, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            {prevBestStars > 0 ? (
+              <Text style={{ fontSize: 11, color: '#fff', fontWeight: '900', letterSpacing: 1 }}>
+                🆕 {'★'.repeat(prevBestStars)} → {'★'.repeat(stars)} ベスト更新！
+              </Text>
+            ) : (
+              <Text style={{ fontSize: 11, color: '#fff', fontWeight: '900', letterSpacing: 1 }}>🎉 初クリア！</Text>
+            )}
           </View>
         )}
 
@@ -1774,7 +1780,9 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
               <Text key={s} style={{ fontSize: 11, color: s <= liveStars ? '#F5C518' : 'rgba(255,255,255,0.20)' }}>★</Text>
             ));
           })()}
-          <Text style={{ fontSize: 13, color: 'rgba(200,180,255,0.75)', fontWeight: '700' }}>{moves}手</Text>
+          <Text style={{ fontSize: 13, color: 'rgba(200,180,255,0.75)', fontWeight: '700' }}>
+            {moves}<Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.45)' }}>/{colors * cap}</Text>手
+          </Text>
         </View>
         <TouchableOpacity style={[s.restartBtn, { backgroundColor: 'rgba(255,255,255,0.12)' }]} onPress={restartWithAd}>
           <Text style={s.restartBtnTxt}>🔄</Text>
