@@ -2696,6 +2696,11 @@ export default function App() {
     setDailyBonus(null);
   }
 
+  function showToast(item) {
+    hapticNotification(Haptics.NotificationFeedbackType.Success);
+    setToastQueue(q => [...q, item]);
+  }
+
   function unlockAchievement(id) {
     setEarnedAchieves(prev => {
       if (prev.has(id)) return prev;
@@ -2703,7 +2708,7 @@ export default function App() {
       next.add(id);
       AsyncStorage.setItem(ACHIEVE_KEY, JSON.stringify([...next])).catch(() => {});
       const achievement = ACHIEVEMENTS.find(a => a.id === id);
-      if (achievement) setToastQueue(q => [...q, achievement]);
+      if (achievement) showToast(achievement);
       return next;
     });
   }
@@ -2792,7 +2797,7 @@ export default function App() {
         const next = prev + 1;
         if (next > 0 && next % 3 === 0) {
           bonusCoins = 100;
-          setToastQueue(q => [...q, { id: `combo_${next}`, emoji: '🔥', header: 'パーフェクトコンボ！', title: `${next}連続3つ星！`, desc: `ボーナス🪙×100 獲得！` }]);
+          showToast({ id: `combo_${next}`, emoji: '🔥', header: 'パーフェクトコンボ！', title: `${next}連続3つ星！`, desc: `ボーナス🪙×100 獲得！` });
         }
         return next;
       });
@@ -2870,7 +2875,7 @@ export default function App() {
         const prevP = base.progress[m.id];
         const newP  = p[m.id];
         if (prevP && newP && !prevP.claimed && prevP.current < m.target && newP.current >= m.target) {
-          setToastQueue(q => [...q, { id: `mission_${m.id}`, emoji: m.emoji, header: 'ミッション達成！', title: m.title, desc: `🪙×${m.reward} が受け取れます！` }]);
+          showToast({ id: `mission_${m.id}`, emoji: m.emoji, header: 'ミッション達成！', title: m.title, desc: `🪙×${m.reward} が受け取れます！` });
         }
       });
       const next = { weekKey: thisWeek, progress: p };
