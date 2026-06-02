@@ -767,7 +767,7 @@ function SettingsModal({ bgmOn, sfxOn, colorblind, onToggleBGM, onToggleSFX, onT
 }
 
 // ── Achievement List Modal ─────────────────────────────────
-function AchievementListModal({ earnedAchieves, onClose }) {
+function AchievementListModal({ earnedAchieves, clearedCount, totalStars, endlessHigh, onClose }) {
   const scale = useRef(new Animated.Value(0.85)).current;
   useEffect(() => {
     Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
@@ -776,10 +776,34 @@ function AchievementListModal({ earnedAchieves, onClose }) {
   return (
     <Modal transparent animationType="fade">
       <View style={s.overlay}>
-        <Animated.View style={[s.winCard, { transform: [{ scale }], gap: 8, paddingVertical: 24, maxHeight: SH * 0.82 }]}>
+        <Animated.View style={[s.winCard, { transform: [{ scale }], gap: 8, paddingVertical: 24, maxHeight: SH * 0.88 }]}>
           <Text style={{ fontSize: 36 }}>🏆</Text>
           <Text style={[s.winTitle, { fontSize: 20 }]}>実績</Text>
-          <Text style={{ fontSize: 12, color: GREY, marginTop: -4 }}>{earned}/{ACHIEVEMENTS.length} 解除済み</Text>
+
+          {/* Stats summary */}
+          <View style={{
+            width: '100%', flexDirection: 'row', gap: 8, marginTop: -4,
+          }}>
+            {[
+              { emoji: '🎮', value: clearedCount, label: 'クリア', sub: `/${TOTAL_STAGES}` },
+              { emoji: '⭐', value: totalStars,   label: '合計星', sub: `/${TOTAL_STAGES * 3}` },
+              { emoji: '♾️', value: endlessHigh,  label: 'エンドレス', sub: '' },
+            ].map(st => (
+              <View key={st.label} style={{
+                flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 12,
+                backgroundColor: 'rgba(255,255,255,0.06)',
+                borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+              }}>
+                <Text style={{ fontSize: 18 }}>{st.emoji}</Text>
+                <Text style={{ fontSize: 16, fontWeight: '900', color: '#E8D8A0' }}>
+                  {st.value}<Text style={{ fontSize: 9, color: 'rgba(200,180,255,0.5)' }}>{st.sub}</Text>
+                </Text>
+                <Text style={{ fontSize: 9, color: GREY }}>{st.label}</Text>
+              </View>
+            ))}
+          </View>
+
+          <Text style={{ fontSize: 12, color: GREY }}>{earned}/{ACHIEVEMENTS.length} 解除済み</Text>
 
           {/* Progress bar */}
           <View style={{ width: '100%', height: 6, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' }}>
@@ -2345,6 +2369,19 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
               <View style={[s.winCard, { gap: 10 }]}>
                 <Text style={{ fontSize: 44 }}>{noHearts ? '💔' : '🏪'}</Text>
                 <Text style={[s.winTitle, { fontSize: 22 }]}>{noHearts ? 'ハートがありません' : 'ハートショップ'}</Text>
+                {/* Heart status + regen timer */}
+                <View style={{ alignItems: 'center', gap: 4 }}>
+                  <View style={{ flexDirection: 'row', gap: 4 }}>
+                    {Array.from({ length: MAX_HEARTS }, (_, i) => (
+                      <Text key={i} style={{ fontSize: 20 }}>{i < hearts.count ? '❤️' : '🖤'}</Text>
+                    ))}
+                  </View>
+                  {timeLeft && hearts.count < MAX_HEARTS && (
+                    <Text style={{ fontSize: 13, color: '#F5C518', fontWeight: '800' }}>
+                      ⏱ {timeLeft} で +❤️
+                    </Text>
+                  )}
+                </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
                   backgroundColor: 'rgba(245,197,24,0.12)', paddingHorizontal: 16, paddingVertical: 8,
                   borderRadius: 16, borderWidth: 1, borderColor: 'rgba(245,197,24,0.35)' }}>
@@ -2869,6 +2906,9 @@ export default function App() {
       {showAchievements && (
         <AchievementListModal
           earnedAchieves={earnedAchieves}
+          clearedCount={clearedStages.size}
+          totalStars={Object.values(stageStars).reduce((a, b) => a + b, 0)}
+          endlessHigh={endlessHigh}
           onClose={() => setShowAchievements(false)}
         />
       )}
