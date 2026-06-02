@@ -134,6 +134,7 @@ const SFX_KEY         = 'ballsort_sfx_v1';
 const HAPTICS_KEY     = 'ballsort_haptics_v1';
 const COLORBLIND_KEY  = 'ballsort_colorblind_v1';
 const STARS_KEY       = 'ballsort_stars_v1';
+const MOVES_KEY       = 'ballsort_moves_v1';
 
 // 色覚サポート用シンボル（色ごとに固有の記号）
 const CB_SYMBOLS = ['✕','◆','★','▲','●','■','♥','○','▼','✦','♦','♣'];
@@ -789,7 +790,7 @@ function SettingsModal({ bgmOn, sfxOn, hapticsOn, colorblind, onToggleBGM, onTog
 }
 
 // ── Achievement List Modal ─────────────────────────────────
-function AchievementListModal({ earnedAchieves, clearedCount, totalStars, endlessHigh, onClose }) {
+function AchievementListModal({ earnedAchieves, clearedCount, totalStars, endlessHigh, totalMoves, onClose }) {
   const scale = useRef(new Animated.Value(0.85)).current;
   useEffect(() => {
     Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
@@ -804,12 +805,13 @@ function AchievementListModal({ earnedAchieves, clearedCount, totalStars, endles
 
           {/* Stats summary */}
           <View style={{
-            width: '100%', flexDirection: 'row', gap: 8, marginTop: -4,
+            width: '100%', flexDirection: 'row', gap: 6, marginTop: -4, flexWrap: 'wrap',
           }}>
             {[
               { emoji: '🎮', value: clearedCount, label: 'クリア', sub: `/${TOTAL_STAGES}` },
               { emoji: '⭐', value: totalStars,   label: '合計星', sub: `/${TOTAL_STAGES * 3}` },
               { emoji: '♾️', value: endlessHigh,  label: 'エンドレス', sub: '' },
+              { emoji: '🤲', value: totalMoves ?? 0, label: '総手数', sub: '' },
             ].map(st => (
               <View key={st.label} style={{
                 flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 12,
@@ -1461,6 +1463,7 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
           noHint: !usedHintRef.current,
           noUndo: !usedUndoRef.current,
           exactOpt: totalMoves === optMoves,
+          moves: totalMoves,
         });
         hapticNotification(Haptics.NotificationFeedbackType.Success);
         playSound('win');
@@ -1677,7 +1680,7 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
         const coinsWon2  = Math.round(COIN_PER_STAR[starsWon2] * stageMult2 * (isChallenge ? 2 : 1));
         setCoinsEarned(coinsWon2);
         setWon(true);
-        onStageComplete?.(stage, coinsWon2, starsWon2, isChallenge, { noHint: false, noUndo: !usedUndoRef.current, exactOpt: false });
+        onStageComplete?.(stage, coinsWon2, starsWon2, isChallenge, { noHint: false, noUndo: !usedUndoRef.current, exactOpt: false, moves: totalMoves });
         hapticNotification(Haptics.NotificationFeedbackType.Success);
         playSound('win');
       }
@@ -2545,6 +2548,7 @@ export default function App() {
   const [endlessHigh, setEndlessHigh]     = useState(0);
   const [endlessConfig, setEndlessConfig] = useState(null);
   const [endlessResult, setEndlessResult] = useState(null);
+  const [totalMovesEver, setTotalMovesEver] = useState(0);
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -2565,7 +2569,8 @@ export default function App() {
       AsyncStorage.getItem(COLORBLIND_KEY),
       AsyncStorage.getItem(STARS_KEY),
       AsyncStorage.getItem(ENDLESS_KEY),
-    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawSfx, rawHap, rawCb, rawSt, rawEl]) => {
+      AsyncStorage.getItem(MOVES_KEY),
+    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawSfx, rawHap, rawCb, rawSt, rawEl, rawMv]) => {
       if (rawP) setClearedStages(new Set(JSON.parse(rawP)));
       if (rawI) setItems(JSON.parse(rawI));
       if (!rawT) setTutorialDone(false);
@@ -2614,6 +2619,7 @@ export default function App() {
       if (rawCb === '1') setColorblind(true);
       if (rawSt) setStageStars(JSON.parse(rawSt));
       if (rawEl) setEndlessHigh(Number(rawEl));
+      if (rawMv) setTotalMovesEver(Number(rawMv));
     }).catch(() => {});
     initSounds().then(() => playBGM());
     loadRewarded();
@@ -2718,6 +2724,13 @@ export default function App() {
   }
 
   function handleStageComplete(stageNum, coinsWon = 0, stars = 1, isChallenge = false, flags = {}) {
+    if (flags.moves > 0) {
+      setTotalMovesEver(prev => {
+        const next = prev + flags.moves;
+        AsyncStorage.setItem(MOVES_KEY, String(next)).catch(() => {});
+        return next;
+      });
+    }
     setCoins(prev => {
       const next = prev + coinsWon;
       AsyncStorage.setItem(COINS_KEY, String(next)).catch(() => {});
@@ -3046,6 +3059,7 @@ export default function App() {
           clearedCount={clearedStages.size}
           totalStars={Object.values(stageStars).reduce((a, b) => a + b, 0)}
           endlessHigh={endlessHigh}
+          totalMoves={totalMovesEver}
           onClose={() => setShowAchievements(false)}
         />
       )}
