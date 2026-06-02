@@ -773,7 +773,7 @@ function ToggleRow({ label, desc, value, onToggle }) {
 }
 
 // ── Settings Modal ─────────────────────────────────────────
-function SettingsModal({ bgmOn, sfxOn, hapticsOn, colorblind, onToggleBGM, onToggleSFX, onToggleHaptics, onToggleColorblind, onClose }) {
+function SettingsModal({ bgmOn, sfxOn, hapticsOn, colorblind, onToggleBGM, onToggleSFX, onToggleHaptics, onToggleColorblind, onResetTutorial, onClose }) {
   const scale = useRef(new Animated.Value(0.85)).current;
   useEffect(() => {
     Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
@@ -788,7 +788,12 @@ function SettingsModal({ bgmOn, sfxOn, hapticsOn, colorblind, onToggleBGM, onTog
           <ToggleRow label="🔔 効果音" desc="ゲーム内効果音のオン/オフ" value={sfxOn} onToggle={onToggleSFX} />
           <ToggleRow label="📳 バイブレーション" desc="タップ時の振動フィードバック" value={hapticsOn} onToggle={onToggleHaptics} />
           <ToggleRow label="♿ 色覚サポート" desc="各チューブに識別記号を表示" value={colorblind} onToggle={onToggleColorblind} />
-          <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY, marginTop: 12 }]} onPress={onClose}>
+          <TouchableOpacity
+            style={[s.nextBtn, { backgroundColor: 'rgba(47,123,240,0.18)', borderWidth: 1, borderColor: 'rgba(47,123,240,0.4)', marginTop: 10 }]}
+            onPress={onResetTutorial}>
+            <Text style={[s.nextBtnTxt, { color: '#6BAAFF' }]}>📖 チュートリアルをもう一度見る</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY, marginTop: 4 }]} onPress={onClose}>
             <Text style={s.nextBtnTxt}>閉じる</Text>
           </TouchableOpacity>
         </Animated.View>
@@ -2904,6 +2909,12 @@ export default function App() {
     AsyncStorage.setItem(COLORBLIND_KEY, next ? '1' : '0').catch(() => {});
   }
 
+  function resetTutorial() {
+    AsyncStorage.removeItem(TUTORIAL_KEY).catch(() => {});
+    setTutorialDone(false);
+    Alert.alert('📖 チュートリアルリセット', 'ステージ1をプレイするとチュートリアルが表示されます。', [{ text: 'OK' }]);
+  }
+
   function handleSpendCoins(amount) {
     setCoins(prev => {
       const next = Math.max(0, prev - amount);
@@ -3103,6 +3114,7 @@ export default function App() {
           onToggleSFX={toggleSFX}
           onToggleHaptics={toggleHaptics}
           onToggleColorblind={toggleColorblind}
+          onResetTutorial={resetTutorial}
           onClose={() => setShowSettings(false)}
         />
       )}
