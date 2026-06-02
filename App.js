@@ -138,6 +138,7 @@ const MOVES_KEY       = 'ballsort_moves_v1';
 const CLEARS_KEY      = 'ballsort_clears_v1';
 const FREE_HINT_KEY   = 'ballsort_free_hint_v1';
 const BEST_TIME_KEY   = 'ballsort_best_time_v1';
+const COINS_EARNED_KEY = 'ballsort_coins_earned_v1';
 
 // 色覚サポート用シンボル（色ごとに固有の記号）
 const CB_SYMBOLS = ['✕','◆','★','▲','●','■','♥','○','▼','✦','♦','♣'];
@@ -200,6 +201,11 @@ const ACHIEVEMENTS = [
   { id: 'clears_10',    emoji: '🧫', title: '精練の道',              desc: '累計10回ステージをクリア（再挑戦含む）' },
   { id: 'clears_50',    emoji: '🌡️', title: '炎の試練者',            desc: '累計50回ステージをクリア' },
   { id: 'clears_100',   emoji: '🏺', title: '不滅の錬金師',          desc: '累計100回ステージをクリア' },
+  { id: 'fast_30',      emoji: '⚡', title: '閃光の錬金術師',        desc: '30秒以内でステージをクリア' },
+  { id: 'coins_500',    emoji: '💰', title: '資産家',                desc: 'コインを500枚以上獲得（累計）' },
+  { id: 'coins_2000',   emoji: '💎', title: '大富豪',                desc: 'コインを2000枚以上獲得（累計）' },
+  { id: 'perfect_10',   emoji: '🌈', title: '完璧主義者',            desc: '10ステージ以上で3つ星を獲得' },
+  { id: 'perfect_50',   emoji: '👑', title: '無欠の覇者',            desc: '50ステージ以上で3つ星を獲得' },
 ];
 
 function getDailyChallengeConfig() {
@@ -2675,6 +2681,7 @@ export default function App() {
   const [perfectStreak, setPerfectStreak]   = useState(0);
   const [freeHintDate, setFreeHintDate]     = useState(null);
   const [stageBestTimes, setStageBestTimes] = useState({});
+  const [totalCoinsEarned, setTotalCoinsEarned] = useState(0);
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -2699,7 +2706,8 @@ export default function App() {
       AsyncStorage.getItem(CLEARS_KEY),
       AsyncStorage.getItem(FREE_HINT_KEY),
       AsyncStorage.getItem(BEST_TIME_KEY),
-    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawSfx, rawHap, rawCb, rawSt, rawEl, rawMv, rawCls, rawFH, rawBT]) => {
+      AsyncStorage.getItem(COINS_EARNED_KEY),
+    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawSfx, rawHap, rawCb, rawSt, rawEl, rawMv, rawCls, rawFH, rawBT, rawCE]) => {
       if (rawP) setClearedStages(new Set(JSON.parse(rawP)));
       if (rawI) setItems(JSON.parse(rawI));
       if (!rawT) setTutorialDone(false);
@@ -2752,6 +2760,7 @@ export default function App() {
       if (rawCls) setTotalClears(Number(rawCls));
       if (rawFH)  setFreeHintDate(rawFH);
       if (rawBT)  setStageBestTimes(JSON.parse(rawBT));
+      if (rawCE)  setTotalCoinsEarned(Number(rawCE));
     }).catch(() => {});
     initSounds().then(() => playBGM());
     loadRewarded();
@@ -2813,7 +2822,7 @@ export default function App() {
     });
   }
 
-  function checkAchievements(clearedSet, stars, isChallenge, streak, flags = {}, totalStars = 0) {
+  function checkAchievements(clearedSet, stars, isChallenge, streak, flags = {}, totalStars = 0, threeStarCount = 0, coinsEarned = 0) {
     if (clearedSet.size >= 1)   unlockAchievement('first_clear');
     if (clearedSet.size >= 5)   unlockAchievement('clear_5');
     if (clearedSet.size >= 10)  unlockAchievement('clear_10');
@@ -2829,8 +2838,13 @@ export default function App() {
     if (flags.noUndo)                 unlockAchievement('no_undo');
     if (flags.noHint && flags.noUndo) unlockAchievement('pure_clear');
     if (flags.exactOpt)               unlockAchievement('speed_clear');
+    if (flags.time > 0 && flags.time <= 30) unlockAchievement('fast_30');
     if (totalStars >= 100)      unlockAchievement('stars_100');
     if (totalStars >= 300)      unlockAchievement('stars_300');
+    if (threeStarCount >= 10)   unlockAchievement('perfect_10');
+    if (threeStarCount >= 50)   unlockAchievement('perfect_50');
+    if (coinsEarned >= 500)     unlockAchievement('coins_500');
+    if (coinsEarned >= 2000)    unlockAchievement('coins_2000');
   }
 
   function saveHearts(h) {
@@ -2920,6 +2934,15 @@ export default function App() {
       AsyncStorage.setItem(COINS_KEY, String(next)).catch(() => {});
       return next;
     });
+    let newTotalCoinsEarned = totalCoinsEarned;
+    if (coinsWon > 0) {
+      setTotalCoinsEarned(prev => {
+        const next = prev + coinsWon + bonusCoins;
+        AsyncStorage.setItem(COINS_EARNED_KEY, String(next)).catch(() => {});
+        newTotalCoinsEarned = next;
+        return next;
+      });
+    }
     if (!isChallenge && stageNum > 0) {
       setStageStars(prev => {
         if ((prev[stageNum] ?? 0) >= stars) return prev;
@@ -2957,16 +2980,17 @@ export default function App() {
         setTimeout(() => Alert.alert(title, msg, [{ text: 'OK' }]), 1400);
       }
     }
+    const threeStarCount = Object.values(stageStars).filter(s => s === 3).length + (!isChallenge && stageNum > 0 && stars === 3 && (stageStars[stageNum] ?? 0) < 3 ? 1 : 0);
     if (stageNum > 0) {
       setClearedStages(prev => {
         const next = new Set(prev);
         next.add(stageNum);
         saveProgress(next);
-        checkAchievements(next, stars, isChallenge, dailyBonus?.streak ?? 0, flags, totalStars);
+        checkAchievements(next, stars, isChallenge, dailyBonus?.streak ?? 0, flags, totalStars, threeStarCount, newTotalCoinsEarned);
         return next;
       });
     } else {
-      checkAchievements(clearedStages, stars, isChallenge, dailyBonus?.streak ?? 0, flags, totalStars);
+      checkAchievements(clearedStages, stars, isChallenge, dailyBonus?.streak ?? 0, flags, totalStars, threeStarCount, newTotalCoinsEarned);
     }
   }
 
