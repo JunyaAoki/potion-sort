@@ -135,6 +135,7 @@ const HAPTICS_KEY     = 'ballsort_haptics_v1';
 const COLORBLIND_KEY  = 'ballsort_colorblind_v1';
 const STARS_KEY       = 'ballsort_stars_v1';
 const MOVES_KEY       = 'ballsort_moves_v1';
+const CLEARS_KEY      = 'ballsort_clears_v1';
 
 // 色覚サポート用シンボル（色ごとに固有の記号）
 const CB_SYMBOLS = ['✕','◆','★','▲','●','■','♥','○','▼','✦','♦','♣'];
@@ -194,6 +195,9 @@ const ACHIEVEMENTS = [
   { id: 'moves_100',    emoji: '👐', title: '百手の職人',            desc: '合計100手を達成' },
   { id: 'moves_500',    emoji: '🔮', title: '五百手の魔術師',        desc: '合計500手を達成' },
   { id: 'moves_1000',   emoji: '⚗️', title: '千手の大錬金術師',      desc: '合計1000手を達成' },
+  { id: 'clears_10',    emoji: '🧫', title: '精練の道',              desc: '累計10回ステージをクリア（再挑戦含む）' },
+  { id: 'clears_50',    emoji: '🌡️', title: '炎の試練者',            desc: '累計50回ステージをクリア' },
+  { id: 'clears_100',   emoji: '🏺', title: '不滅の錬金師',          desc: '累計100回ステージをクリア' },
 ];
 
 function getDailyChallengeConfig() {
@@ -794,7 +798,7 @@ function SettingsModal({ bgmOn, sfxOn, hapticsOn, colorblind, onToggleBGM, onTog
 }
 
 // ── Achievement List Modal ─────────────────────────────────
-function AchievementListModal({ earnedAchieves, clearedCount, totalStars, endlessHigh, totalMoves, onClose }) {
+function AchievementListModal({ earnedAchieves, clearedCount, totalStars, endlessHigh, totalMoves, totalClears, onClose }) {
   const scale = useRef(new Animated.Value(0.85)).current;
   useEffect(() => {
     Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
@@ -815,6 +819,7 @@ function AchievementListModal({ earnedAchieves, clearedCount, totalStars, endles
               { emoji: '🎮', value: clearedCount, label: 'クリア', sub: `/${TOTAL_STAGES}` },
               { emoji: '⭐', value: totalStars,   label: '合計星', sub: `/${TOTAL_STAGES * 3}` },
               { emoji: '♾️', value: endlessHigh,  label: 'エンドレス', sub: '' },
+              { emoji: '🔄', value: totalClears ?? 0, label: '総クリア', sub: '' },
               { emoji: '🤲', value: totalMoves ?? 0, label: '総手数', sub: '' },
             ].map(st => (
               <View key={st.label} style={{
@@ -2559,6 +2564,7 @@ export default function App() {
   const [endlessConfig, setEndlessConfig] = useState(null);
   const [endlessResult, setEndlessResult] = useState(null);
   const [totalMovesEver, setTotalMovesEver] = useState(0);
+  const [totalClears, setTotalClears]       = useState(0);
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -2580,7 +2586,8 @@ export default function App() {
       AsyncStorage.getItem(STARS_KEY),
       AsyncStorage.getItem(ENDLESS_KEY),
       AsyncStorage.getItem(MOVES_KEY),
-    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawSfx, rawHap, rawCb, rawSt, rawEl, rawMv]) => {
+      AsyncStorage.getItem(CLEARS_KEY),
+    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawSfx, rawHap, rawCb, rawSt, rawEl, rawMv, rawCls]) => {
       if (rawP) setClearedStages(new Set(JSON.parse(rawP)));
       if (rawI) setItems(JSON.parse(rawI));
       if (!rawT) setTutorialDone(false);
@@ -2629,7 +2636,8 @@ export default function App() {
       if (rawCb === '1') setColorblind(true);
       if (rawSt) setStageStars(JSON.parse(rawSt));
       if (rawEl) setEndlessHigh(Number(rawEl));
-      if (rawMv) setTotalMovesEver(Number(rawMv));
+      if (rawMv)  setTotalMovesEver(Number(rawMv));
+      if (rawCls) setTotalClears(Number(rawCls));
     }).catch(() => {});
     initSounds().then(() => playBGM());
     loadRewarded();
@@ -2744,6 +2752,14 @@ export default function App() {
         return next;
       });
     }
+    setTotalClears(prev => {
+      const next = prev + 1;
+      AsyncStorage.setItem(CLEARS_KEY, String(next)).catch(() => {});
+      if (prev < 10  && next >= 10)  unlockAchievement('clears_10');
+      if (prev < 50  && next >= 50)  unlockAchievement('clears_50');
+      if (prev < 100 && next >= 100) unlockAchievement('clears_100');
+      return next;
+    });
     setCoins(prev => {
       const next = prev + coinsWon;
       AsyncStorage.setItem(COINS_KEY, String(next)).catch(() => {});
@@ -3074,6 +3090,7 @@ export default function App() {
           totalStars={Object.values(stageStars).reduce((a, b) => a + b, 0)}
           endlessHigh={endlessHigh}
           totalMoves={totalMovesEver}
+          totalClears={totalClears}
           onClose={() => setShowAchievements(false)}
         />
       )}
