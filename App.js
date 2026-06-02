@@ -1736,9 +1736,17 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
               <Text style={{ fontSize: 10, color: stageColor, fontWeight: '800', letterSpacing: 1 }}>
                 {BANDS[Math.min(Math.floor((stage - 1) / 10), BANDS.length - 1)].name}
               </Text>
-              <Text style={{ fontSize: 10, color: '#E84343', fontWeight: '800', letterSpacing: 1 }}>
-                🔥 EXTREME
+              <Text style={{ fontSize: 10, color: '#E84343', fontWeight: '800', letterSpacing: 1 }}>🔥 EXTREME</Text>
+              <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.55)', fontWeight: '600' }}>
+                ★3目標 {colors * cap}手
               </Text>
+              {bestStars > 0 && (
+                <View style={{ flexDirection: 'row', gap: 1 }}>
+                  {[1,2,3].map(s => (
+                    <Text key={s} style={{ fontSize: 9, color: s <= bestStars ? '#F5C518' : 'rgba(255,255,255,0.2)' }}>★</Text>
+                  ))}
+                </View>
+              )}
             </View>
           ) : !isChallenge ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
@@ -1756,6 +1764,10 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
                 </View>
               )}
             </View>
+          ) : isChallenge ? (
+            <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.55)', fontWeight: '600' }}>
+              🪙×2ボーナス · ★3目標 {colors * cap}手
+            </Text>
           ) : null}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
