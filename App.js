@@ -985,9 +985,10 @@ function WeeklyMissionsModal({ weekly, coins, onClaim, onClose }) {
 // ── Win Overlay ────────────────────────────────────────────
 const SPARKLE_EMOJIS = ['⭐','✨','💫','🌟','⚡','💛','🔆','🌠'];
 
-function WinOverlay({ moves, stage, stageColor, coinsEarned, optMoves, prevBestStars, isEndless, isChallenge, endlessScore, onNext, onReplay }) {
+function WinOverlay({ moves, stage, stageColor, coinsEarned, optMoves, prevBestStars, elapsed, prevBestTime, isEndless, isChallenge, endlessScore, onNext, onReplay }) {
   const stars    = moves <= optMoves ? 3 : moves <= optMoves * 1.7 ? 2 : 1;
   const isNewRecord = stars > (prevBestStars ?? 0);
+  const isTimeRecord = !isEndless && !isChallenge && elapsed > 0 && (prevBestTime === undefined || elapsed < prevBestTime);
   const scale    = useRef(new Animated.Value(0.5)).current;
   const coinAnim = useRef(new Animated.Value(0)).current;
   const [displayCoins, setDisplayCoins] = useState(0);
@@ -1145,6 +1146,21 @@ function WinOverlay({ moves, stage, stageColor, coinsEarned, optMoves, prevBestS
             {'  '}(最適 {optMoves} 手)
           </Text>
         </Text>
+        {elapsed > 0 && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={{ fontSize: 12, color: isTimeRecord ? '#FF6B35' : GREY }}>
+              ⏱ {fmtTime(elapsed)}
+            </Text>
+            {isTimeRecord && prevBestTime !== undefined && (
+              <Text style={{ fontSize: 10, color: '#FF6B35', fontWeight: '800' }}>
+                🆕 (prev: {fmtTime(prevBestTime)})
+              </Text>
+            )}
+            {isTimeRecord && prevBestTime === undefined && (
+              <Text style={{ fontSize: 10, color: '#FF6B35', fontWeight: '800' }}>⏱ ベストタイム！</Text>
+            )}
+          </View>
+        )}
 
         {isEndless ? (
           <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#8B30E8' }]} onPress={onNext}>
@@ -1351,7 +1367,7 @@ function FloatingCheck({ x, y, color, onDone }) {
 }
 
 // ── Game Screen ────────────────────────────────────────────
-function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallenge, isEndless, endlessScore, endlessHigh, challengeOverride, colorblindMode, bestStars, hasFreeHint, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem, onClaimFreeHint, onConsumeHeart, onToggleSound, onToggleColorblind }) {
+function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallenge, isEndless, endlessScore, endlessHigh, challengeOverride, colorblindMode, bestStars, bestTime, hasFreeHint, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem, onClaimFreeHint, onConsumeHeart, onToggleSound, onToggleColorblind }) {
   const cfg = challengeOverride
     ? { colors: challengeOverride.colors, cap: challengeOverride.cap, empty: challengeOverride.empty, stageColor: '#8B30E8' }
     : getStageConfig(stage);
@@ -2021,6 +2037,7 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
           coinsEarned={coinsEarned}
           optMoves={colors * cap}
           prevBestStars={bestStars}
+          elapsed={elapsed} prevBestTime={bestTime}
           isEndless={isEndless} isChallenge={isChallenge} endlessScore={endlessScore}
           onNext={onNext} onReplay={restart}
         />
@@ -2348,8 +2365,9 @@ function StageSelect({ clearedStages, stageStars, stageBestTimes, hearts, coins,
   }, []);
 
   function handleCellPress(num) {
-    if (hearts.count <= 0) { setNoHearts(true); return; }
-    onPlay(num);
+    const isReplay = clearedStages.has(num) && num < nextStage;
+    if (!isReplay && hearts.count <= 0) { setNoHearts(true); return; }
+    onPlay(num, isReplay);
   }
 
   const iconBtn = {
@@ -3171,6 +3189,7 @@ export default function App() {
         stage={gameStage}
         challengeOverride={gameCfg}
         bestStars={stageStars[gameStage] ?? 0}
+        bestTime={stageBestTimes[gameStage]}
         items={items}
         coins={coins}
         isFirstPlay={!tutorialDone && stage === 1}
@@ -3227,7 +3246,7 @@ export default function App() {
         onShowMissions={() => setShowMissions(true)}
         onShowSettings={() => setShowSettings(true)}
         onShowAchievements={() => setShowAchievements(true)}
-        onPlay={stageNum => { consumeHeart(); setStage(stageNum); setScreen('game'); }}
+        onPlay={(stageNum, isReplay) => { if (!isReplay) consumeHeart(); setStage(stageNum); setScreen('game'); }}
       />
       {dailyBonus && (
         <DailyBonusModal
