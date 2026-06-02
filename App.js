@@ -1044,8 +1044,13 @@ function WinOverlay({ moves, stage, stageColor, coinsEarned, optMoves, prevBestS
       </View>
 
       <Animated.View style={[s.winCard, { transform: [{ scale }] }]}>
-        <Text style={s.winEmoji}>🎉</Text>
+        <Text style={s.winEmoji}>{isEndless ? '♾️' : isChallenge ? '🧪' : '🎉'}</Text>
         <Text style={s.winTitle}>クリア！</Text>
+        {isEndless && (
+          <Text style={{ fontSize: 13, color: '#8B30E8', fontWeight: '800', marginTop: -6 }}>
+            ENDLESS ステージ {endlessScore + 1}
+          </Text>
+        )}
         {isNewRecord && (
           <View style={{ backgroundColor: '#E84343', paddingHorizontal: 14, paddingVertical: 4, borderRadius: 12, marginTop: -4, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             {prevBestStars > 0 ? (
@@ -1431,7 +1436,9 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
         const totalMoves = moves + 1;
         const optMoves   = colors * cap;
         const starsWon   = totalMoves <= optMoves ? 3 : totalMoves <= optMoves * 1.7 ? 2 : 1;
-        const stageMult  = stage >= 151 ? 3 : stage >= 101 ? 2 : stage >= 51 ? 1.5 : 1;
+        const stageMult  = isEndless
+          ? (endlessScore >= 30 ? 3 : endlessScore >= 10 ? 2 : 1.5)
+          : stage >= 151 ? 3 : stage >= 101 ? 2 : stage >= 51 ? 1.5 : 1;
         const coins      = Math.round(COIN_PER_STAR[starsWon] * stageMult * (isChallenge ? 2 : 1));
         setCoinsEarned(coins);
         setWon(true);
@@ -1649,7 +1656,9 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
         const totalMoves = moves + 1;
         const optMoves2  = colors * cap;
         const starsWon2  = totalMoves <= optMoves2 ? 3 : totalMoves <= optMoves2 * 1.7 ? 2 : 1;
-        const stageMult2 = stage >= 151 ? 3 : stage >= 101 ? 2 : stage >= 51 ? 1.5 : 1;
+        const stageMult2 = isEndless
+          ? (endlessScore >= 30 ? 3 : endlessScore >= 10 ? 2 : 1.5)
+          : stage >= 151 ? 3 : stage >= 101 ? 2 : stage >= 51 ? 1.5 : 1;
         const coinsWon2  = Math.round(COIN_PER_STAR[starsWon2] * stageMult2 * (isChallenge ? 2 : 1));
         setCoinsEarned(coinsWon2);
         setWon(true);
