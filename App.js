@@ -2103,12 +2103,18 @@ const MAP_STEP     = 96;
 const MAP_PIPE_X   = SW / 2;
 const MAP_CARD_W   = Math.min(158, Math.floor((SW - 80) / 2));
 const MAP_CONN_W   = Math.max(8,  Math.floor(SW / 2 - 15 - MAP_CARD_W));
+const MAP_BAND_H   = 46;
 const TOTAL_STAGES = 200;
 
 function buildMapLayout() {
   const items = [], yPos = {};
   let y = 0;
   for (let num = TOTAL_STAGES; num >= 1; num--) {
+    const band = BANDS[Math.min(Math.floor((num - 1) / 10), BANDS.length - 1)];
+    if (num === band.end) {
+      items.push({ type: 'band_header', band, y, h: MAP_BAND_H });
+      y += MAP_BAND_H;
+    }
     const side = (TOTAL_STAGES - num) % 2 === 0 ? 'right' : 'left';
     yPos[num] = y;
     items.push({ type: 'stage', num, y, h: MAP_STEP, side });
@@ -2203,6 +2209,35 @@ function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandCo
           )}
         </TouchableOpacity>
       </Animated.View>
+    </View>
+  );
+}
+
+// ── Band Divider ───────────────────────────────────────────
+function BandDivider({ band, stageStars, clearedStages }) {
+  const stageCount = band.end - band.start + 1;
+  const cleared = Array.from({ length: stageCount }, (_, i) => clearedStages.has(band.start + i) ? 1 : 0).reduce((a, b) => a + b, 0);
+  const bandStars = Array.from({ length: stageCount }, (_, i) => stageStars[band.start + i] ?? 0).reduce((a, b) => a + b, 0);
+  const maxStars = stageCount * 3;
+  const isComplete = cleared === stageCount;
+  return (
+    <View style={{ height: MAP_BAND_H, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 8 }}>
+      <View style={{ flex: 1, height: 1, backgroundColor: `${band.color}44` }} />
+      <View style={{
+        flexDirection: 'row', alignItems: 'center', gap: 5,
+        paddingHorizontal: 10, paddingVertical: 5,
+        borderRadius: 14,
+        backgroundColor: isComplete ? `${band.color}30` : `${band.color}18`,
+        borderWidth: 1,
+        borderColor: isComplete ? `${band.color}88` : `${band.color}44`,
+      }}>
+        {isComplete && <Text style={{ fontSize: 10 }}>✅</Text>}
+        <Text style={{ fontSize: 10, fontWeight: '900', color: band.color, letterSpacing: 1.5 }}>{band.name}</Text>
+        <Text style={{ fontSize: 9, color: `${band.color}CC` }}>
+          {cleared}/{stageCount}  ★{bandStars}/{maxStars}
+        </Text>
+      </View>
+      <View style={{ flex: 1, height: 1, backgroundColor: `${band.color}44` }} />
     </View>
   );
 }
@@ -2400,6 +2435,16 @@ function StageSelect({ clearedStages, stageStars, hearts, coins, challengeDone, 
             </View>
 
             {MAP_LAYOUT.items.map((item, idx) => {
+              if (item.type === 'band_header') {
+                return (
+                  <BandDivider
+                    key={`band-${item.band.name}`}
+                    band={item.band}
+                    stageStars={stageStars}
+                    clearedStages={clearedStages}
+                  />
+                );
+              }
               const { num, side } = item;
               const band      = BANDS[Math.min(Math.floor((num - 1) / 10), BANDS.length - 1)];
               const isCleared = clearedStages.has(num);
