@@ -504,6 +504,8 @@ const TUTORIAL_STEPS = [
   { emoji: '👆', title: 'チューブをタップ', desc: '液体の入ったチューブをタップして選択します。光っているチューブが選択中です。' },
   { emoji: '➡️', title: '移動先をタップ',  desc: '移動先のチューブをタップします。\n同じ色か、空のチューブに移動できます。' },
   { emoji: '🎯', title: 'ゴール！',         desc: '全てのチューブを\n同じ色の液体で揃えるとクリアです！' },
+  { emoji: '💡', title: 'ヒントを活用しよう', desc: '迷ったら💡ヒントボタンを使いましょう。\n最適な一手をAIが教えてくれます！' },
+  { emoji: '↩', title: 'やり直せます',      desc: '↩ボタンで一手だけ戻せます。\nミスしても焦らずプレイしてください！' },
 ];
 
 function TutorialOverlay({ step, onNext, onSkip }) {
