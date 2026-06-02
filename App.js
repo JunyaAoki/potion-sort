@@ -139,6 +139,7 @@ const CLEARS_KEY      = 'ballsort_clears_v1';
 const FREE_HINT_KEY   = 'ballsort_free_hint_v1';
 const BEST_TIME_KEY   = 'ballsort_best_time_v1';
 const COINS_EARNED_KEY = 'ballsort_coins_earned_v1';
+const MIDGAME_PREFIX   = 'ballsort_mid_';
 
 // 色覚サポート用シンボル（色ごとに固有の記号）
 const CB_SYMBOLS = ['✕','◆','★','▲','●','■','♥','○','▼','✦','♦','♣'];
@@ -1366,6 +1367,33 @@ function FloatingCheck({ x, y, color, onDone }) {
   );
 }
 
+// ── Resume Modal ───────────────────────────────────────────
+function ResumeModal({ savedMoves, onResume, onFresh }) {
+  const scale = useRef(new Animated.Value(0.85)).current;
+  useEffect(() => {
+    Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
+  }, []);
+  return (
+    <Modal transparent animationType="fade">
+      <View style={s.overlay}>
+        <Animated.View style={[s.winCard, { transform: [{ scale }], gap: 12 }]}>
+          <Text style={{ fontSize: 44 }}>💾</Text>
+          <Text style={[s.winTitle, { fontSize: 20 }]}>前回の続きがあります</Text>
+          <Text style={{ fontSize: 13, color: GREY }}>
+            {savedMoves}手まで進んでいました
+          </Text>
+          <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#8B30E8' }]} onPress={onResume}>
+            <Text style={s.nextBtnTxt}>↩ 続きから再開</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY }]} onPress={onFresh}>
+            <Text style={s.nextBtnTxt}>🔄 最初からやり直す</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
 // ── Game Screen ────────────────────────────────────────────
 function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallenge, isEndless, endlessScore, endlessHigh, challengeOverride, colorblindMode, bestStars, bestTime, hasFreeHint, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem, onClaimFreeHint, onConsumeHeart, onToggleSound, onToggleColorblind }) {
   const cfg = challengeOverride
@@ -1384,6 +1412,7 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
   const [coinsEarned, setCoinsEarned]   = useState(0);
   const [deadlocked, setDeadlocked]     = useState(false);
   const [elapsed, setElapsed]           = useState(0);
+  const [resumeData, setResumeData]     = useState(null);
   const startTimeRef    = useRef(Date.now());
   const usedHintRef     = useRef(false);
   const usedUndoRef     = useRef(false);
@@ -1396,6 +1425,46 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
     const id = setInterval(() => setElapsed(Math.floor((Date.now() - startTimeRef.current) / 1000)), 1000);
     return () => clearInterval(id);
   }, [won]);
+
+  // Load mid-game save on mount (normal stages only)
+  useEffect(() => {
+    if (!isChallenge && !isEndless && stage > 0) {
+      AsyncStorage.getItem(`${MIDGAME_PREFIX}${stage}`).then(raw => {
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        if (saved.tubes && saved.tubes.length === tubes.length &&
+            saved.tubes.every(t => t.length <= cap)) {
+          setResumeData(saved);
+        } else {
+          AsyncStorage.removeItem(`${MIDGAME_PREFIX}${stage}`).catch(() => {});
+        }
+      }).catch(() => {});
+    }
+  }, []);
+
+  function saveMidgame() {
+    if (!isChallenge && !isEndless && stage > 0 && moves > 0) {
+      AsyncStorage.setItem(`${MIDGAME_PREFIX}${stage}`, JSON.stringify({ tubes, moves })).catch(() => {});
+    }
+  }
+
+  function clearMidgame() {
+    if (!isChallenge && !isEndless && stage > 0) {
+      AsyncStorage.removeItem(`${MIDGAME_PREFIX}${stage}`).catch(() => {});
+    }
+  }
+
+  function handleResumeAccept() {
+    setTubes(resumeData.tubes);
+    setMoves(resumeData.moves);
+    setResumeData(null);
+    clearMidgame();
+  }
+
+  function handleResumeFresh() {
+    setResumeData(null);
+    clearMidgame();
+  }
 
   function advanceTutorial() {
     if (tutorialStep < TUTORIAL_STEPS.length) {
@@ -1530,6 +1599,7 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
         const coins      = Math.round(COIN_PER_STAR[starsWon] * stageMult * (isChallenge ? 2 : 1));
         setCoinsEarned(coins);
         setWon(true);
+        clearMidgame();
         onStageComplete?.(stage, coins, starsWon, isChallenge, {
           noHint: !usedHintRef.current,
           noUndo: !usedUndoRef.current,
@@ -1762,6 +1832,7 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
   }
 
   function restart() {
+    clearMidgame();
     startTimeRef.current = Date.now();
     setElapsed(0);
     usedHintRef.current = false;
@@ -1833,7 +1904,7 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
 
       {/* Header */}
       <View style={[s.header, { backgroundColor: 'rgba(10,6,30,0.80)', borderBottomColor: 'rgba(180,140,55,0.35)' }]}>
-        <TouchableOpacity onPress={onBack} style={s.iconBtn}>
+        <TouchableOpacity onPress={() => { if (!won) saveMidgame(); onBack(); }} style={s.iconBtn}>
           <Text style={[s.iconTxt, { color: '#E8D8A0' }]}>←</Text>
         </TouchableOpacity>
         <View style={{ alignItems: 'center' }}>
@@ -2028,6 +2099,14 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
           step={tutorialStep}
           onNext={advanceTutorial}
           onSkip={() => { setTutorialStep(0); onTutorialDone?.(); }}
+        />
+      )}
+
+      {resumeData && (
+        <ResumeModal
+          savedMoves={resumeData.moves}
+          onResume={handleResumeAccept}
+          onFresh={handleResumeFresh}
         />
       )}
 
