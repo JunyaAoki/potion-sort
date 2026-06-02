@@ -136,6 +136,7 @@ const COLORBLIND_KEY  = 'ballsort_colorblind_v1';
 const STARS_KEY       = 'ballsort_stars_v1';
 const MOVES_KEY       = 'ballsort_moves_v1';
 const CLEARS_KEY      = 'ballsort_clears_v1';
+const FREE_HINT_KEY   = 'ballsort_free_hint_v1';
 
 // 色覚サポート用シンボル（色ごとに固有の記号）
 const CB_SYMBOLS = ['✕','◆','★','▲','●','■','♥','○','▼','✦','♦','♣'];
@@ -706,7 +707,7 @@ function ReviewModal({ onRate, onLater, onNo }) {
 }
 
 // ── Purchase Modal ─────────────────────────────────────────
-function PurchaseModal({ type, coins, onClose, onWatchAd, onBuyWithCoins }) {
+function PurchaseModal({ type, coins, hasFreeHint, onClose, onWatchAd, onBuyWithCoins, onClaimFree }) {
   const label = type === 'undo' ? 'やり直し' : 'ヒント';
   const cost  = type === 'hint' ? ITEM_HINT_COST : ITEM_UNDO_COST;
   const scale = useRef(new Animated.Value(0.8)).current;
@@ -714,6 +715,7 @@ function PurchaseModal({ type, coins, onClose, onWatchAd, onBuyWithCoins }) {
     Animated.spring(scale, { toValue: 1, friction: 6, useNativeDriver: true }).start();
   }, []);
   const canAfford = (coins ?? 0) >= cost;
+  const showFree  = type === 'hint' && hasFreeHint;
   return (
     <Modal transparent animationType="fade">
       <View style={s.overlay}>
@@ -723,6 +725,13 @@ function PurchaseModal({ type, coins, onClose, onWatchAd, onBuyWithCoins }) {
           <Text style={{ fontSize: 14, color: GREY, textAlign: 'center', lineHeight: 20 }}>
             コインを使うか広告を見て入手できます
           </Text>
+          {showFree && (
+            <TouchableOpacity
+              style={[s.nextBtn, { backgroundColor: '#FF6B35', borderWidth: 2, borderColor: 'rgba(255,200,100,0.6)' }]}
+              onPress={onClaimFree}>
+              <Text style={s.nextBtnTxt}>🎁 今日の無料ヒント（1日1回）</Text>
+            </TouchableOpacity>
+          )}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
             backgroundColor: 'rgba(245,197,24,0.12)', paddingHorizontal: 14, paddingVertical: 7,
             borderRadius: 14, borderWidth: 1, borderColor: 'rgba(245,197,24,0.35)' }}>
@@ -1329,7 +1338,7 @@ function FloatingCheck({ x, y, color, onDone }) {
 }
 
 // ── Game Screen ────────────────────────────────────────────
-function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallenge, isEndless, endlessScore, endlessHigh, challengeOverride, colorblindMode, bestStars, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem, onConsumeHeart, onToggleSound, onToggleColorblind }) {
+function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallenge, isEndless, endlessScore, endlessHigh, challengeOverride, colorblindMode, bestStars, hasFreeHint, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem, onClaimFreeHint, onConsumeHeart, onToggleSound, onToggleColorblind }) {
   const cfg = challengeOverride
     ? { colors: challengeOverride.colors, cap: challengeOverride.cap, empty: challengeOverride.empty, stageColor: '#8B30E8' }
     : getStageConfig(stage);
@@ -2015,9 +2024,11 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
         <PurchaseModal
           type={purchaseType}
           coins={coins}
+          hasFreeHint={hasFreeHint && purchaseType === 'hint'}
           onClose={() => setPurchaseType(null)}
           onWatchAd={() => { setPurchaseType(null); onBuyItem(purchaseType, 3, 'ad'); }}
           onBuyWithCoins={() => { setPurchaseType(null); onBuyItem(purchaseType, 1, 'coins'); }}
+          onClaimFree={() => { setPurchaseType(null); onClaimFreeHint?.(); }}
         />
       )}
 
@@ -2650,6 +2661,7 @@ export default function App() {
   const [totalMovesEver, setTotalMovesEver] = useState(0);
   const [totalClears, setTotalClears]       = useState(0);
   const [perfectStreak, setPerfectStreak]   = useState(0);
+  const [freeHintDate, setFreeHintDate]     = useState(null);
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -2672,7 +2684,8 @@ export default function App() {
       AsyncStorage.getItem(ENDLESS_KEY),
       AsyncStorage.getItem(MOVES_KEY),
       AsyncStorage.getItem(CLEARS_KEY),
-    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawSfx, rawHap, rawCb, rawSt, rawEl, rawMv, rawCls]) => {
+      AsyncStorage.getItem(FREE_HINT_KEY),
+    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawSfx, rawHap, rawCb, rawSt, rawEl, rawMv, rawCls, rawFH]) => {
       if (rawP) setClearedStages(new Set(JSON.parse(rawP)));
       if (rawI) setItems(JSON.parse(rawI));
       if (!rawT) setTutorialDone(false);
@@ -2723,6 +2736,7 @@ export default function App() {
       if (rawEl) setEndlessHigh(Number(rawEl));
       if (rawMv)  setTotalMovesEver(Number(rawMv));
       if (rawCls) setTotalClears(Number(rawCls));
+      if (rawFH)  setFreeHintDate(rawFH);
     }).catch(() => {});
     initSounds().then(() => playBGM());
     loadRewarded();
@@ -2753,6 +2767,18 @@ export default function App() {
     }
     if (dailyBonus.streak >= 7) unlockAchievement('daily_7');
     setDailyBonus(null);
+  }
+
+  function claimFreeHint() {
+    const today = new Date().toISOString().slice(0, 10);
+    setFreeHintDate(today);
+    AsyncStorage.setItem(FREE_HINT_KEY, today).catch(() => {});
+    setItems(prev => {
+      const next = { ...prev, hint: prev.hint + 1 };
+      saveItems(next);
+      return next;
+    });
+    showToast({ id: 'free_hint', emoji: '🎁', header: '無料ヒント！', title: '今日の無料ヒント', desc: 'ヒント×1 を入手しました！明日また使えます。' });
   }
 
   function showToast(item) {
@@ -3122,6 +3148,8 @@ export default function App() {
         }
         onUseItem={handleUseItem}
         onBuyItem={handleBuyItem}
+        hasFreeHint={freeHintDate !== new Date().toISOString().slice(0, 10)}
+        onClaimFreeHint={claimFreeHint}
         hearts={hearts}
         onConsumeHeart={consumeHeart}
         bgmOn={bgmOn}
