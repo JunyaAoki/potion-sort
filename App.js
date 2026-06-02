@@ -2414,8 +2414,9 @@ function EndlessGameOverModal({ score, high, isRecord, hearts, coins, onRetry, o
 // ── Stage Select Screen ────────────────────────────────────
 const HEART_COIN_COST  = 30;
 const REFILL_COIN_COST = 100;
+const SKIP_STAGE_COST  = 50;
 
-function StageSelect({ clearedStages, stageStars, stageBestTimes, hearts, coins, challengeDone, weekly, endlessHigh, onPlay, onPlayChallenge, onPlayEndless, onAddHearts, onSpendCoins, onShowMissions, onShowSettings, onShowAchievements }) {
+function StageSelect({ clearedStages, stageStars, stageBestTimes, perfectStreak, hearts, coins, challengeDone, weekly, endlessHigh, onPlay, onPlayChallenge, onPlayEndless, onAddHearts, onSpendCoins, onShowMissions, onShowSettings, onShowAchievements, onSkipStage }) {
   const nextStage = Math.min(TOTAL_STAGES + 1, clearedStages.size > 0 ? Math.max(...clearedStages) + 1 : 1);
   const [shopOpen, setShopOpen] = useState(false);
   const [noHearts, setNoHearts] = useState(false);
@@ -2469,18 +2470,40 @@ function StageSelect({ clearedStages, stageStars, stageBestTimes, hearts, coins,
           backgroundColor: 'rgba(10,6,30,0.78)',
           borderBottomWidth: 1, borderBottomColor: 'rgba(180,140,55,0.3)',
         }}>
-          <TouchableOpacity
-            onPress={() => nextStage <= TOTAL_STAGES ? handleCellPress(Math.min(nextStage, TOTAL_STAGES)) : null}
-            style={{ alignItems: 'center', minWidth: 60, paddingHorizontal: 6, paddingVertical: 4,
-              borderRadius: 12, backgroundColor: nextStage <= TOTAL_STAGES ? 'rgba(139,48,232,0.25)' : 'transparent',
-              borderWidth: nextStage <= TOTAL_STAGES ? 1 : 0, borderColor: 'rgba(139,48,232,0.5)' }}>
-            <Text style={{ fontSize: 9, color: 'rgba(200,180,255,0.6)', letterSpacing: 2, fontWeight: '700' }}>
-              {nextStage <= TOTAL_STAGES ? '▶ PLAY' : 'STAGE'}
-            </Text>
-            <Text style={{ fontSize: 16, fontWeight: '900', color: '#E8D8A0' }}>
-              {Math.min(nextStage, TOTAL_STAGES)}<Text style={{ fontSize: 9, color: 'rgba(200,180,255,0.5)' }}>/{TOTAL_STAGES}</Text>
-            </Text>
-          </TouchableOpacity>
+          <View style={{ alignItems: 'center', gap: 2 }}>
+            <TouchableOpacity
+              onPress={() => nextStage <= TOTAL_STAGES ? handleCellPress(Math.min(nextStage, TOTAL_STAGES)) : null}
+              style={{ alignItems: 'center', minWidth: 60, paddingHorizontal: 6, paddingVertical: 4,
+                borderRadius: 12, backgroundColor: nextStage <= TOTAL_STAGES ? 'rgba(139,48,232,0.25)' : 'transparent',
+                borderWidth: nextStage <= TOTAL_STAGES ? 1 : 0, borderColor: 'rgba(139,48,232,0.5)' }}>
+              <Text style={{ fontSize: 9, color: 'rgba(200,180,255,0.6)', letterSpacing: 2, fontWeight: '700' }}>
+                {nextStage <= TOTAL_STAGES ? '▶ PLAY' : 'STAGE'}
+              </Text>
+              <Text style={{ fontSize: 16, fontWeight: '900', color: '#E8D8A0' }}>
+                {Math.min(nextStage, TOTAL_STAGES)}<Text style={{ fontSize: 9, color: 'rgba(200,180,255,0.5)' }}>/{TOTAL_STAGES}</Text>
+              </Text>
+            </TouchableOpacity>
+            {nextStage > 5 && nextStage <= TOTAL_STAGES && (
+              <TouchableOpacity
+                onPress={() => {
+                  if (coins < SKIP_STAGE_COST) {
+                    Alert.alert('コイン不足', `ステージスキップには🪙${SKIP_STAGE_COST}必要です。`);
+                    return;
+                  }
+                  Alert.alert('ステージスキップ', `🪙${SKIP_STAGE_COST}を使ってステージ${nextStage}をスキップしますか？`, [
+                    { text: 'スキップ', onPress: () => onSkipStage?.(nextStage) },
+                    { text: 'キャンセル', style: 'cancel' },
+                  ]);
+                }}
+                style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8,
+                  backgroundColor: coins >= SKIP_STAGE_COST ? 'rgba(245,197,24,0.15)' : 'rgba(120,120,120,0.15)',
+                  borderWidth: 1, borderColor: coins >= SKIP_STAGE_COST ? 'rgba(245,197,24,0.4)' : 'rgba(120,120,120,0.3)' }}>
+                <Text style={{ fontSize: 8, color: coins >= SKIP_STAGE_COST ? '#F5C518' : GREY, fontWeight: '700' }}>
+                  ⏭ 🪙{SKIP_STAGE_COST}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4,
             backgroundColor: 'rgba(245,197,24,0.15)', paddingHorizontal: 10, paddingVertical: 5,
             borderRadius: 14, borderWidth: 1, borderColor: 'rgba(245,197,24,0.35)' }}>
@@ -2499,6 +2522,16 @@ function StageSelect({ clearedStages, stageStars, stageBestTimes, hearts, coins,
               <Text style={{ fontSize: 9, color: 'rgba(200,180,255,0.5)', marginTop: 1 }}>MAX</Text>
             ) : null}
           </View>
+          {perfectStreak >= 3 && (
+            <View style={{
+              alignItems: 'center', paddingHorizontal: 7, paddingVertical: 4,
+              borderRadius: 12, backgroundColor: 'rgba(255,107,53,0.20)',
+              borderWidth: 1, borderColor: 'rgba(255,107,53,0.5)',
+            }}>
+              <Text style={{ fontSize: 9, color: '#FF6B35', fontWeight: '900', letterSpacing: 1 }}>COMBO</Text>
+              <Text style={{ fontSize: 14, fontWeight: '900', color: '#FF6B35' }}>🔥{perfectStreak}</Text>
+            </View>
+          )}
           <TouchableOpacity onPress={onShowAchievements} style={iconBtn}><Text style={{ fontSize: 16 }}>🏆</Text></TouchableOpacity>
           <TouchableOpacity onPress={onShowSettings}     style={iconBtn}><Text style={{ fontSize: 16 }}>⚙️</Text></TouchableOpacity>
           <TouchableOpacity onPress={() => setShopOpen(true)} style={iconBtn}><Text style={{ fontSize: 18 }}>🏪</Text></TouchableOpacity>
@@ -3171,6 +3204,23 @@ export default function App() {
     });
   }
 
+  function handleSkipStage(stageNum) {
+    handleSpendCoins(SKIP_STAGE_COST);
+    setClearedStages(prev => {
+      const next = new Set(prev);
+      next.add(stageNum);
+      saveProgress(next);
+      return next;
+    });
+    setStageStars(prev => {
+      if (prev[stageNum]) return prev;
+      const next = { ...prev, [stageNum]: 1 };
+      AsyncStorage.setItem(STARS_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+    showToast({ id: `skip_${stageNum}`, emoji: '⏭', header: 'スキップ！', title: `ステージ${stageNum}をスキップ`, desc: `ステージ${stageNum + 1}が解放されました！` });
+  }
+
   function handleUseItem(type) {
     setItems(prev => {
       const next = { ...prev, [type]: Math.max(0, prev[type] - 1) };
@@ -3324,8 +3374,10 @@ export default function App() {
         onSpendCoins={handleSpendCoins}
         onShowMissions={() => setShowMissions(true)}
         onShowSettings={() => setShowSettings(true)}
+        perfectStreak={perfectStreak}
         onShowAchievements={() => setShowAchievements(true)}
         onPlay={(stageNum, isReplay) => { if (!isReplay) consumeHeart(); setStage(stageNum); setScreen('game'); }}
+        onSkipStage={handleSkipStage}
       />
       {dailyBonus && (
         <DailyBonusModal
