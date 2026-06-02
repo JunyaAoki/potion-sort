@@ -112,6 +112,8 @@ function getStageConfig(stageNum) {
 }
 
 const INITIAL_ITEMS   = { undo: 5, hint: 5 };
+const ITEM_HINT_COST  = 30;
+const ITEM_UNDO_COST  = 20;
 const ITEMS_KEY       = 'ballsort_items_v1';
 const PROGRESS_KEY    = 'ballsort_progress_v2';
 const TUTORIAL_KEY    = 'ballsort_tutorial_v1';
@@ -653,7 +655,7 @@ function AchievementToast({ achievement, onDone }) {
       <Text style={{ fontSize: 32 }}>{achievement.emoji}</Text>
       <View style={{ flex: 1 }}>
         <Text style={{ fontSize: 10, color: 'rgba(200,160,80,0.8)', fontWeight: '700', letterSpacing: 2 }}>
-          実績解除！
+          {achievement.header ?? '実績解除！'}
         </Text>
         <Text style={{ fontSize: 15, fontWeight: '800', color: '#E8D8A0' }}>{achievement.title}</Text>
         <Text style={{ fontSize: 11, color: 'rgba(200,180,255,0.65)' }}>{achievement.desc}</Text>
@@ -695,26 +697,37 @@ function ReviewModal({ onRate, onLater, onNo }) {
 }
 
 // ── Purchase Modal ─────────────────────────────────────────
-function PurchaseModal({ type, onClose, onWatchAd, onBuy }) {
+function PurchaseModal({ type, coins, onClose, onWatchAd, onBuyWithCoins }) {
   const label = type === 'undo' ? 'やり直し' : 'ヒント';
+  const cost  = type === 'hint' ? ITEM_HINT_COST : ITEM_UNDO_COST;
   const scale = useRef(new Animated.Value(0.8)).current;
   useEffect(() => {
     Animated.spring(scale, { toValue: 1, friction: 6, useNativeDriver: true }).start();
   }, []);
+  const canAfford = (coins ?? 0) >= cost;
   return (
     <Modal transparent animationType="fade">
       <View style={s.overlay}>
         <Animated.View style={[s.winCard, { transform: [{ scale }] }]}>
           <Text style={{ fontSize: 44 }}>💎</Text>
-          <Text style={[s.winTitle, { fontSize: 22 }]}>{label}アイテムがありません</Text>
+          <Text style={[s.winTitle, { fontSize: 22 }]}>{label}がありません</Text>
           <Text style={{ fontSize: 14, color: GREY, textAlign: 'center', lineHeight: 20 }}>
-            広告を見るか、アイテムを購入してください
+            コインを使うか広告を見て入手できます
           </Text>
-          <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#27C757' }]} onPress={onWatchAd}>
-            <Text style={s.nextBtnTxt}>📺 広告を見て3個もらう</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+            backgroundColor: 'rgba(245,197,24,0.12)', paddingHorizontal: 14, paddingVertical: 7,
+            borderRadius: 14, borderWidth: 1, borderColor: 'rgba(245,197,24,0.35)' }}>
+            <Text style={{ fontSize: 16 }}>🪙</Text>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: '#F5C518' }}>{fmtCoins(coins ?? 0)} 所持</Text>
+          </View>
+          <TouchableOpacity
+            style={[s.nextBtn, { backgroundColor: canAfford ? '#F5C518' : '#AAA' }]}
+            onPress={canAfford ? onBuyWithCoins : null}
+            disabled={!canAfford}>
+            <Text style={[s.nextBtnTxt, { color: '#333' }]}>🪙 {cost}コイン → {label} × 1</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#2F7BF0' }]} onPress={onBuy}>
-            <Text style={s.nextBtnTxt}>💎 アイテムを購入</Text>
+          <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#27C757' }]} onPress={onWatchAd}>
+            <Text style={s.nextBtnTxt}>📺 広告を見て × 3もらう</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY }]} onPress={onClose}>
             <Text style={s.nextBtnTxt}>キャンセル</Text>
@@ -1289,7 +1302,7 @@ function FloatingCheck({ x, y, color, onDone }) {
 }
 
 // ── Game Screen ────────────────────────────────────────────
-function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isEndless, endlessScore, endlessHigh, challengeOverride, colorblindMode, bestStars, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem, onConsumeHeart, onToggleSound, onToggleColorblind }) {
+function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallenge, isEndless, endlessScore, endlessHigh, challengeOverride, colorblindMode, bestStars, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem, onConsumeHeart, onToggleSound, onToggleColorblind }) {
   const cfg = challengeOverride
     ? { colors: challengeOverride.colors, cap: challengeOverride.cap, empty: challengeOverride.empty, stageColor: '#8B30E8' }
     : getStageConfig(stage);
@@ -1933,19 +1946,10 @@ function GameScreen({ stage, items, hearts, bgmOn, isFirstPlay, isChallenge, isE
       {purchaseType && (
         <PurchaseModal
           type={purchaseType}
+          coins={coins}
           onClose={() => setPurchaseType(null)}
           onWatchAd={() => { setPurchaseType(null); onBuyItem(purchaseType, 3, 'ad'); }}
-          onBuy={() => {
-            setPurchaseType(null);
-            Alert.alert(
-              '🏪 コインショップ',
-              'マップのショップでコインを購入してアイテムと交換できます。マップに戻りますか？',
-              [
-                { text: 'マップへ', onPress: onBack },
-                { text: 'あとで', style: 'cancel' },
-              ]
-            );
-          }}
+          onBuyWithCoins={() => { setPurchaseType(null); onBuyItem(purchaseType, 1, 'coins'); }}
         />
       )}
 
@@ -2689,6 +2693,16 @@ export default function App() {
     const prevStageStars = stageStars[stageNum] ?? 0;
     const addedStars = !isChallenge && stageNum > 0 && stars > prevStageStars ? stars - prevStageStars : 0;
     const totalStars = Object.values(stageStars).reduce((a, b) => a + b, 0) + addedStars;
+    const prevTotal = totalStars - addedStars;
+    const STAR_MILESTONES = {
+      100: { title: '🌟 100個の星を獲得！', msg: '全ステージ合計100個の星を集めました！\n百星の錬金術師の称号です！' },
+      300: { title: '💠 300個の星を獲得！', msg: '全ステージ合計300個の星を集めました！\nあなたは伝説の三百星の覇者！' },
+    };
+    for (const [threshold, { title, msg }] of Object.entries(STAR_MILESTONES)) {
+      if (prevTotal < Number(threshold) && totalStars >= Number(threshold)) {
+        setTimeout(() => Alert.alert(title, msg, [{ text: 'OK' }]), 1400);
+      }
+    }
     if (stageNum > 0) {
       setClearedStages(prev => {
         const next = new Set(prev);
@@ -2714,6 +2728,13 @@ export default function App() {
       if (stars === 3)       inc('w_perfect3');
       if (isChallenge)       inc('w_challenge');
       if (flags.noHint)      inc('w_nohint3');
+      WEEKLY_MISSIONS.forEach(m => {
+        const prevP = base.progress[m.id];
+        const newP  = p[m.id];
+        if (prevP && newP && !prevP.claimed && prevP.current < m.target && newP.current >= m.target) {
+          setToastQueue(q => [...q, { id: `mission_${m.id}`, emoji: m.emoji, header: 'ミッション達成！', title: m.title, desc: `🪙×${m.reward} が受け取れます！` }]);
+        }
+      });
       const next = { weekKey: thisWeek, progress: p };
       AsyncStorage.setItem(WEEKLY_KEY, JSON.stringify(next)).catch(() => {});
       return next;
@@ -2786,6 +2807,18 @@ export default function App() {
           return next;
         });
       });
+    } else if (method === 'coins') {
+      const cost = (type === 'hint' ? ITEM_HINT_COST : ITEM_UNDO_COST) * count;
+      setCoins(prev => {
+        const next = Math.max(0, prev - cost);
+        AsyncStorage.setItem(COINS_KEY, String(next)).catch(() => {});
+        return next;
+      });
+      setItems(prev => {
+        const next = { ...prev, [type]: prev[type] + count };
+        saveItems(next);
+        return next;
+      });
     }
   }
 
@@ -2852,6 +2885,7 @@ export default function App() {
         challengeOverride={gameCfg}
         bestStars={stageStars[gameStage] ?? 0}
         items={items}
+        coins={coins}
         isFirstPlay={!tutorialDone && stage === 1}
         isChallenge={isChallenge}
         isEndless={isEndless}
