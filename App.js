@@ -2565,6 +2565,7 @@ export default function App() {
   const [endlessResult, setEndlessResult] = useState(null);
   const [totalMovesEver, setTotalMovesEver] = useState(0);
   const [totalClears, setTotalClears]       = useState(0);
+  const [perfectStreak, setPerfectStreak]   = useState(0);
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -2760,8 +2761,21 @@ export default function App() {
       if (prev < 100 && next >= 100) unlockAchievement('clears_100');
       return next;
     });
+    let bonusCoins = 0;
+    if (stars === 3 && !isChallenge) {
+      setPerfectStreak(prev => {
+        const next = prev + 1;
+        if (next > 0 && next % 3 === 0) {
+          bonusCoins = 100;
+          setToastQueue(q => [...q, { id: `combo_${next}`, emoji: '🔥', header: 'パーフェクトコンボ！', title: `${next}連続3つ星！`, desc: `ボーナス🪙×100 獲得！` }]);
+        }
+        return next;
+      });
+    } else if (stars < 3 && !isChallenge) {
+      setPerfectStreak(0);
+    }
     setCoins(prev => {
-      const next = prev + coinsWon;
+      const next = prev + coinsWon + bonusCoins;
       AsyncStorage.setItem(COINS_KEY, String(next)).catch(() => {});
       return next;
     });
