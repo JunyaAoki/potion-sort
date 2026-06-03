@@ -3113,14 +3113,24 @@ export default function App() {
       }).catch(() => {});
     }
     const MILESTONES = {
-      50:  { title: '🏆 ステージ50クリア！', msg: 'cap-6チャレンジ開幕！さらに深みへ...' },
-      100: { title: '🌟 ステージ100クリア！', msg: '伝説のポーション使いへの道が開かれた！' },
-      150: { title: '💎 ステージ150クリア！', msg: '究極の挑戦者！残るは最後の50ステージ。' },
-      200: { title: '👑 ステージ200クリア！', msg: '全200ステージ完全制覇！あなたは真の錬金術師！' },
+      50:  { title: '🏆 ステージ50クリア！', msg: 'cap-6チャレンジ開幕！さらに深みへ...\n\n🎁 ボーナス：🪙100 ＋ 💡×2 ＋ ↩×2', bonus: { coins: 100, hints: 2, undos: 2 } },
+      100: { title: '🌟 ステージ100クリア！', msg: '伝説のポーション使いへの道が開かれた！\n\n🎁 ボーナス：🪙300 ＋ 💡×3 ＋ ↩×3', bonus: { coins: 300, hints: 3, undos: 3 } },
+      150: { title: '💎 ステージ150クリア！', msg: '究極の挑戦者！残るは最後の50ステージ。\n\n🎁 ボーナス：🪙500 ＋ 💡×5 ＋ ↩×5', bonus: { coins: 500, hints: 5, undos: 5 } },
+      200: { title: '👑 ステージ200完全制覇！', msg: '全200ステージクリア！あなたは真の錬金術師！\n\n🎁 ボーナス：🪙1000 ＋ 💡×10 ＋ ↩×10', bonus: { coins: 1000, hints: 10, undos: 10 } },
     };
-    if (!isChallenge && MILESTONES[stageNum]) {
-      const { title, msg } = MILESTONES[stageNum];
-      setTimeout(() => Alert.alert(title, msg, [{ text: 'OK' }]), 800);
+    if (!isChallenge && MILESTONES[stageNum] && !clearedStages.has(stageNum)) {
+      const { title, msg, bonus } = MILESTONES[stageNum];
+      setCoins(prev => {
+        const next = prev + bonus.coins;
+        AsyncStorage.setItem(COINS_KEY, String(next)).catch(() => {});
+        return next;
+      });
+      setItems(prev => {
+        const next = { hint: prev.hint + bonus.hints, undo: prev.undo + bonus.undos };
+        saveItems(next);
+        return next;
+      });
+      setTimeout(() => Alert.alert(title, msg, [{ text: 'すごい！' }]), 800);
     }
     updateWeeklyProgress(stars, isChallenge, flags);
     const prevStageStars = stageStars[stageNum] ?? 0;
