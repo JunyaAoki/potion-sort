@@ -563,7 +563,26 @@ function TutorialOverlay({ step, onNext, onSkip }) {
   );
 }
 
-// ── Purchase Modal ─────────────────────────────────────────
+// ── Animated Coin Display ──────────────────────────────────
+function AnimatedCoinDisplay({ coins, fontSize = 14 }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const prevRef = useRef(coins);
+  useEffect(() => {
+    if (prevRef.current !== coins && coins > prevRef.current) {
+      Animated.sequence([
+        Animated.timing(scale, { toValue: 1.35, duration: 110, useNativeDriver: true }),
+        Animated.spring(scale, { toValue: 1, friction: 4, tension: 120, useNativeDriver: true }),
+      ]).start();
+    }
+    prevRef.current = coins;
+  }, [coins]);
+  return (
+    <Animated.Text style={{ fontSize, fontWeight: '900', color: '#F5C518', transform: [{ scale }] }}>
+      {fmtCoins(coins)}
+    </Animated.Text>
+  );
+}
+
 // ── Daily Bonus Modal ──────────────────────────────────────
 function DailyBonusModal({ streak, reward, onClaim }) {
   const scale    = useRef(new Animated.Value(0.7)).current;
@@ -2011,6 +2030,13 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
           </View>
         )}
 
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2,
+          backgroundColor: 'rgba(245,197,24,0.10)', paddingHorizontal: 8, paddingVertical: 4,
+          borderRadius: 12, borderWidth: 1, borderColor: 'rgba(245,197,24,0.25)' }}>
+          <Text style={{ fontSize: 11 }}>🪙</Text>
+          <AnimatedCoinDisplay coins={coins ?? 0} fontSize={12} />
+        </View>
+
         <View style={{ flex: 1 }} />
 
         <Text style={{ fontSize: 11, color: 'rgba(200,180,255,0.45)', fontWeight: '600' }}>
@@ -2508,7 +2534,7 @@ function StageSelect({ clearedStages, stageStars, stageBestTimes, perfectStreak,
             backgroundColor: 'rgba(245,197,24,0.15)', paddingHorizontal: 10, paddingVertical: 5,
             borderRadius: 14, borderWidth: 1, borderColor: 'rgba(245,197,24,0.35)' }}>
             <Text style={{ fontSize: 14 }}>🪙</Text>
-            <Text style={{ fontSize: 14, fontWeight: '900', color: '#F5C518' }}>{fmtCoins(coins)}</Text>
+            <AnimatedCoinDisplay coins={coins} fontSize={14} />
           </View>
           <View style={{ alignItems: 'center' }}>
             <View style={{ flexDirection: 'row', gap: 2 }}>
