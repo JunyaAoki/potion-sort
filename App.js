@@ -244,6 +244,26 @@ function getEndlessConfig(score) {
   return { colors, cap, empty, seed };
 }
 
+const ENDLESS_ZONES = [
+  { min: 0,  label: 'NOVICE',      color: '#27C757', emoji: '🌱' },
+  { min: 10, label: 'APPRENTICE',  color: '#2F7BF0', emoji: '🔵' },
+  { min: 20, label: 'ADEPT',       color: '#F0C800', emoji: '⚡' },
+  { min: 30, label: 'EXPERT',      color: '#F57C00', emoji: '🔥' },
+  { min: 40, label: 'MASTER',      color: '#E84343', emoji: '💀' },
+  { min: 50, label: 'LEGEND',      color: '#8B30E8', emoji: '🌌' },
+  { min: 75, label: 'MYTHIC',      color: '#E8509A', emoji: '🪐' },
+  { min: 100,label: 'INFINITE',    color: '#FF6B35', emoji: '♾️' },
+];
+
+function getEndlessZone(score) {
+  let zone = ENDLESS_ZONES[0];
+  for (const z of ENDLESS_ZONES) {
+    if (score >= z.min) zone = z;
+    else break;
+  }
+  return zone;
+}
+
 function fmtCoins(n) {
   if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
   return String(n);
@@ -1120,11 +1140,19 @@ function WinOverlay({ moves, stage, stageColor, coinsEarned, optMoves, prevBestS
       <Animated.View style={[s.winCard, { transform: [{ scale }] }]}>
         <Text style={s.winEmoji}>{isEndless ? '♾️' : isChallenge ? '🧪' : '🎉'}</Text>
         <Text style={s.winTitle}>クリア！</Text>
-        {isEndless && (
-          <Text style={{ fontSize: 13, color: '#8B30E8', fontWeight: '800', marginTop: -6 }}>
-            ENDLESS ステージ {endlessScore + 1}
-          </Text>
-        )}
+        {isEndless && (() => {
+          const z = getEndlessZone(endlessScore);
+          return (
+            <View style={{ alignItems: 'center', marginTop: -6, gap: 2 }}>
+              <Text style={{ fontSize: 13, color: z.color, fontWeight: '900', letterSpacing: 1 }}>
+                {z.emoji} {z.label}
+              </Text>
+              <Text style={{ fontSize: 11, color: 'rgba(200,180,255,0.55)', fontWeight: '600' }}>
+                ENDLESS ステージ {endlessScore + 1}
+              </Text>
+            </View>
+          );
+        })()}
         {isNewRecord && (
           <View style={{ backgroundColor: '#E84343', paddingHorizontal: 14, paddingVertical: 4, borderRadius: 12, marginTop: -4, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             {prevBestStars > 0 ? (
@@ -1420,6 +1448,7 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
     : getStageConfig(stage);
   const { colors, cap, empty, stageColor } = cfg;
   const levelSeed = challengeOverride?.seed ?? stage;
+  const zone = isEndless ? getEndlessZone(endlessScore) : null;
 
   const [tubes, setTubes]           = useState(() => makeLevel(colors, cap, empty, levelSeed));
   const [selected, setSelected]     = useState(null);
@@ -1931,9 +1960,14 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
             {isEndless ? `ENDLESS ${endlessScore + 1}` : isChallenge ? 'DAILY CHALLENGE' : `ステージ ${stage}`}
           </Text>
           {isEndless ? (
-            <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.55)', fontWeight: '600' }}>
-              🏆 BEST: {endlessHigh}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={{ fontSize: 10, fontWeight: '900', color: zone.color, letterSpacing: 1 }}>
+                {zone.emoji} {zone.label}
+              </Text>
+              <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.55)', fontWeight: '600' }}>
+                🏆 {endlessHigh}
+              </Text>
+            </View>
           ) : !isChallenge && empty === 1 ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <Text style={{ fontSize: 10, color: stageColor, fontWeight: '800', letterSpacing: 1 }}>
