@@ -2442,7 +2442,7 @@ const HEART_COIN_COST  = 30;
 const REFILL_COIN_COST = 100;
 const SKIP_STAGE_COST  = 50;
 
-function StageSelect({ clearedStages, stageStars, stageBestTimes, perfectStreak, hearts, coins, challengeDone, weekly, endlessHigh, onPlay, onPlayChallenge, onPlayEndless, onAddHearts, onSpendCoins, onShowMissions, onShowSettings, onShowAchievements, onSkipStage }) {
+function StageSelect({ clearedStages, stageStars, stageBestTimes, perfectStreak, hearts, coins, challengeDone, challengeStreak, weekly, endlessHigh, onPlay, onPlayChallenge, onPlayEndless, onAddHearts, onSpendCoins, onShowMissions, onShowSettings, onShowAchievements, onSkipStage }) {
   const nextStage = Math.min(TOTAL_STAGES + 1, clearedStages.size > 0 ? Math.max(...clearedStages) + 1 : 1);
   const [shopOpen, setShopOpen] = useState(false);
   const [noHearts, setNoHearts] = useState(false);
@@ -2673,7 +2673,7 @@ function StageSelect({ clearedStages, stageStars, stageBestTimes, perfectStreak,
               }}
             >
               <Text style={{ fontSize: 22 }}>{challengeDone ? '✅' : '🧪'}</Text>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={{ color: challengeDone ? '#27C757' : '#F5C518', fontSize: 13, fontWeight: '800', letterSpacing: 1 }}>
                   {challengeDone ? "TODAY'S CHALLENGE DONE!" : "TODAY'S CHALLENGE"}
                 </Text>
@@ -2681,6 +2681,13 @@ function StageSelect({ clearedStages, stageStars, stageBestTimes, perfectStreak,
                   {challengeDone ? 'また明日！' : 'クリアで🪙×2ボーナス！'}
                 </Text>
               </View>
+              {challengeStreak > 0 && (
+                <View style={{ alignItems: 'center', paddingLeft: 4 }}>
+                  <Text style={{ fontSize: 9, color: 'rgba(200,180,255,0.6)', fontWeight: '700', letterSpacing: 1 }}>連続</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: challengeDone ? '#27C757' : '#F5C518' }}>🔥{challengeStreak}</Text>
+                  <Text style={{ fontSize: 8, color: 'rgba(200,180,255,0.5)' }}>日</Text>
+                </View>
+              )}
             </TouchableOpacity>
 
             {(() => {
@@ -2819,6 +2826,7 @@ export default function App() {
   const [earnedAchieves, setEarnedAchieves] = useState(new Set());
   const [toastQueue, setToastQueue]       = useState([]);
   const [challengeDone, setChallengeDone] = useState(false);
+  const [challengeStreak, setChallengeStreak] = useState(0);
   const [weekly, setWeekly]               = useState(initWeeklyProgress);
   const [showMissions, setShowMissions]   = useState(false);
   const [bgmOn, setBgmOn]                 = useState(true);
@@ -2888,10 +2896,17 @@ export default function App() {
       }
       // 実績ロード
       if (rawA) setEarnedAchieves(new Set(JSON.parse(rawA)));
-      // チャレンジ完了チェック
+      // チャレンジ完了チェック＋連続記録
       if (rawCh) {
         const ch = JSON.parse(rawCh);
-        if (ch.date === today) setChallengeDone(true);
+        if (ch.date === today) {
+          setChallengeDone(true);
+          setChallengeStreak(ch.streak ?? 1);
+        } else {
+          const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+          if (ch.date === yesterday) setChallengeStreak(ch.streak ?? 1);
+          else setChallengeStreak(0);
+        }
       }
       // ウィークリーミッション読み込み（週が変わったらリセット）
       const thisWeek = getWeekKey();
@@ -3299,7 +3314,9 @@ export default function App() {
 
   function handleChallengeComplete(coinsWon, stars, flags = {}) {
     const today = new Date().toISOString().slice(0, 10);
-    AsyncStorage.setItem(CHALLENGE_KEY, JSON.stringify({ date: today })).catch(() => {});
+    const newStreak = challengeStreak + 1;
+    AsyncStorage.setItem(CHALLENGE_KEY, JSON.stringify({ date: today, streak: newStreak })).catch(() => {});
+    setChallengeStreak(newStreak);
     setChallengeDone(true);
     handleStageComplete(0, coinsWon, stars, true, flags);
   }
@@ -3411,6 +3428,7 @@ export default function App() {
         onShowMissions={() => setShowMissions(true)}
         onShowSettings={() => setShowSettings(true)}
         perfectStreak={perfectStreak}
+        challengeStreak={challengeStreak}
         onShowAchievements={() => setShowAchievements(true)}
         onPlay={(stageNum, isReplay) => { if (!isReplay) consumeHeart(); setStage(stageNum); setScreen('game'); }}
         onSkipStage={handleSkipStage}
