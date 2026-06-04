@@ -80,6 +80,27 @@ const TIERS = [
   { colors: 12, cap: 6, empty: 1 },  // 186-190
   { colors: 12, cap: 6, empty: 1 },  // 191-195
   { colors: 12, cap: 6, empty: 1 },  // 196-200
+  // ── cap 7 series (stages 201-300) ──
+  { colors: 8,  cap: 7, empty: 2 },  // 201-205
+  { colors: 9,  cap: 7, empty: 2 },  // 206-210
+  { colors: 10, cap: 7, empty: 2 },  // 211-215
+  { colors: 11, cap: 7, empty: 2 },  // 216-220
+  { colors: 12, cap: 7, empty: 2 },  // 221-225
+  { colors: 12, cap: 7, empty: 2 },  // 226-230
+  { colors: 8,  cap: 7, empty: 1 },  // 231-235
+  { colors: 9,  cap: 7, empty: 1 },  // 236-240
+  { colors: 10, cap: 7, empty: 1 },  // 241-245
+  { colors: 11, cap: 7, empty: 1 },  // 246-250
+  { colors: 12, cap: 7, empty: 1 },  // 251-255
+  { colors: 12, cap: 7, empty: 1 },  // 256-260
+  { colors: 12, cap: 7, empty: 1 },  // 261-265
+  { colors: 12, cap: 7, empty: 1 },  // 266-270
+  { colors: 12, cap: 7, empty: 1 },  // 271-275
+  { colors: 12, cap: 7, empty: 1 },  // 276-280
+  { colors: 12, cap: 7, empty: 1 },  // 281-285
+  { colors: 12, cap: 7, empty: 1 },  // 286-290
+  { colors: 12, cap: 7, empty: 1 },  // 291-295
+  { colors: 12, cap: 7, empty: 1 },  // 296-300
 ];
 
 const BANDS = [
@@ -103,6 +124,16 @@ const BANDS = [
   { name: 'SUPREME',  color: '#0099AA', start: 171, end: 180 },
   { name: 'INFINITE', color: '#AA2244', start: 181, end: 190 },
   { name: 'ABSOLUTE', color: '#8844AA', start: 191, end: 200 },
+  { name: 'ABYSS',    color: '#1A3A6E', start: 201, end: 210 },
+  { name: 'PRIMAL',   color: '#8B0050', start: 211, end: 220 },
+  { name: 'VORTEX',   color: '#1B6E20', start: 221, end: 230 },
+  { name: 'CRIMSON',  color: '#CC1A1A', start: 231, end: 240 },
+  { name: 'NEBULA',   color: '#5B1A8C', start: 241, end: 250 },
+  { name: 'TEMPEST',  color: '#006060', start: 251, end: 260 },
+  { name: 'QUASAR',   color: '#D45000', start: 261, end: 270 },
+  { name: 'SERAPH',   color: '#334A5F', start: 271, end: 280 },
+  { name: 'COSMOS',   color: '#1A2E3C', start: 281, end: 290 },
+  { name: 'GENESIS',  color: '#9C2700', start: 291, end: 300 },
 ];
 
 function getStageConfig(stageNum) {
@@ -111,9 +142,10 @@ function getStageConfig(stageNum) {
   return { ...TIERS[idx], stageColor: band.color };
 }
 
-const INITIAL_ITEMS   = { undo: 5, hint: 5 };
-const ITEM_HINT_COST  = 30;
-const ITEM_UNDO_COST  = 20;
+const INITIAL_ITEMS      = { undo: 5, hint: 5, extratube: 2 };
+const ITEM_HINT_COST     = 30;
+const ITEM_UNDO_COST     = 20;
+const ITEM_EXTRATUBE_COST = 50;
 const ITEMS_KEY       = 'ballsort_items_v1';
 const PROGRESS_KEY    = 'ballsort_progress_v2';
 const TUTORIAL_KEY    = 'ballsort_tutorial_v1';
@@ -181,7 +213,9 @@ const ACHIEVEMENTS = [
   { id: 'clear_50',     emoji: '💫', title: '50ステージ制覇',    desc: '50ステージをクリア' },
   { id: 'clear_100',    emoji: '💎', title: '100ステージ制覇',   desc: '100ステージをクリア' },
   { id: 'clear_150',    emoji: '🌟', title: '150ステージ制覇',   desc: '150ステージをクリア' },
-  { id: 'clear_200',    emoji: '👑', title: '全ステージ完全制覇', desc: '全200ステージをクリア' },
+  { id: 'clear_200',    emoji: '👑', title: '200ステージ制覇',    desc: '200ステージをクリア' },
+  { id: 'clear_250',    emoji: '🌠', title: '250ステージ制覇',    desc: '250ステージをクリア' },
+  { id: 'clear_300',    emoji: '🏆', title: '全ステージ完全制覇', desc: '全300ステージをクリア' },
   { id: 'perfect',      emoji: '⭐', title: '完璧攻略',          desc: '3つ星でクリア' },
   { id: 'daily_7',      emoji: '🔥', title: '7日連続ログイン',   desc: '7日間連続でログイン' },
   { id: 'challenge',    emoji: '🧪', title: 'チャレンジャー',    desc: 'デイリーチャレンジをクリア' },
@@ -207,6 +241,8 @@ const ACHIEVEMENTS = [
   { id: 'coins_2000',   emoji: '💎', title: '大富豪',                desc: 'コインを2000枚以上獲得（累計）' },
   { id: 'perfect_10',   emoji: '🌈', title: '完璧主義者',            desc: '10ステージ以上で3つ星を獲得' },
   { id: 'perfect_50',   emoji: '👑', title: '無欠の覇者',            desc: '50ステージ以上で3つ星を獲得' },
+  { id: 'challenge_7',  emoji: '🔥', title: '週間の炎',              desc: 'デイリーチャレンジを7日連続クリア' },
+  { id: 'challenge_30', emoji: '🌋', title: '不滅の連鎖',            desc: 'デイリーチャレンジを30日連続クリア' },
 ];
 
 function getDailyChallengeConfig() {
@@ -267,6 +303,13 @@ function getEndlessZone(score) {
 function fmtCoins(n) {
   if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
   return String(n);
+}
+
+function getChallengeMultiplier(streak) {
+  if (streak >= 30) return 5;
+  if (streak >= 14) return 4;
+  if (streak >= 7)  return 3;
+  return 2;
 }
 
 function fmtTime(s) {
@@ -761,8 +804,8 @@ function ReviewModal({ onRate, onLater, onNo }) {
 
 // ── Purchase Modal ─────────────────────────────────────────
 function PurchaseModal({ type, coins, hasFreeHint, onClose, onWatchAd, onBuyWithCoins, onClaimFree }) {
-  const label = type === 'undo' ? 'やり直し' : 'ヒント';
-  const cost  = type === 'hint' ? ITEM_HINT_COST : ITEM_UNDO_COST;
+  const label = type === 'undo' ? 'やり直し' : type === 'extratube' ? '空チューブ' : 'ヒント';
+  const cost  = type === 'hint' ? ITEM_HINT_COST : type === 'extratube' ? ITEM_EXTRATUBE_COST : ITEM_UNDO_COST;
   const scale = useRef(new Animated.Value(0.8)).current;
   useEffect(() => {
     Animated.spring(scale, { toValue: 1, friction: 6, useNativeDriver: true }).start();
@@ -1442,7 +1485,7 @@ function ResumeModal({ savedMoves, onResume, onFresh }) {
 }
 
 // ── Game Screen ────────────────────────────────────────────
-function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallenge, isEndless, endlessScore, endlessHigh, challengeOverride, colorblindMode, bestStars, bestTime, hasFreeHint, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem, onClaimFreeHint, onConsumeHeart, onToggleSound, onToggleColorblind }) {
+function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallenge, isEndless, endlessScore, endlessHigh, challengeOverride, colorblindMode, bestStars, bestTime, hasFreeHint, challengeStreak, onTutorialDone, onBack, onNext, onStageComplete, onUseItem, onBuyItem, onClaimFreeHint, onConsumeHeart, onToggleSound, onToggleColorblind }) {
   const cfg = challengeOverride
     ? { colors: challengeOverride.colors, cap: challengeOverride.cap, empty: challengeOverride.empty, stageColor: '#8B30E8' }
     : getStageConfig(stage);
@@ -1643,8 +1686,8 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
         const starsWon   = totalMoves <= optMoves ? 3 : totalMoves <= optMoves * 1.7 ? 2 : 1;
         const stageMult  = isEndless
           ? (endlessScore >= 30 ? 3 : endlessScore >= 10 ? 2 : 1.5)
-          : stage >= 151 ? 3 : stage >= 101 ? 2 : stage >= 51 ? 1.5 : 1;
-        const coins      = Math.round(COIN_PER_STAR[starsWon] * stageMult * (isChallenge ? 2 : 1));
+          : stage >= 201 ? 4 : stage >= 151 ? 3 : stage >= 101 ? 2 : stage >= 51 ? 1.5 : 1;
+        const coins      = Math.round(COIN_PER_STAR[starsWon] * stageMult * (isChallenge ? getChallengeMultiplier(challengeStreak ?? 0) : 1));
         setCoinsEarned(coins);
         setWon(true);
         clearMidgame();
@@ -1866,8 +1909,8 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
         const starsWon2  = totalMoves <= optMoves2 ? 3 : totalMoves <= optMoves2 * 1.7 ? 2 : 1;
         const stageMult2 = isEndless
           ? (endlessScore >= 30 ? 3 : endlessScore >= 10 ? 2 : 1.5)
-          : stage >= 151 ? 3 : stage >= 101 ? 2 : stage >= 51 ? 1.5 : 1;
-        const coinsWon2  = Math.round(COIN_PER_STAR[starsWon2] * stageMult2 * (isChallenge ? 2 : 1));
+          : stage >= 201 ? 4 : stage >= 151 ? 3 : stage >= 101 ? 2 : stage >= 51 ? 1.5 : 1;
+        const coinsWon2  = Math.round(COIN_PER_STAR[starsWon2] * stageMult2 * (isChallenge ? getChallengeMultiplier(challengeStreak ?? 0) : 1));
         setCoinsEarned(coinsWon2);
         setWon(true);
         onStageComplete?.(stage, coinsWon2, starsWon2, isChallenge, { noHint: false, noUndo: !usedUndoRef.current, exactOpt: false, moves: totalMoves, time: Math.floor((Date.now() - startTimeRef.current) / 1000) });
@@ -1877,6 +1920,15 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
     } else {
       Alert.alert('詰まっています', '↩ Undoで戻るか、🔄 リスタートを試してください。');
     }
+  }
+
+  function handleExtraTube() {
+    if (won || isAnimating.current) return;
+    if (items.extratube <= 0) { setPurchaseType('extratube'); return; }
+    setHistory(h => [...h, tubes.map(x => [...x])]);
+    setTubes(prev => [...prev, []]);
+    onUseItem('extratube');
+    hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
   }
 
   function restart() {
@@ -1929,7 +1981,7 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
   const stageMult = isEndless
     ? (endlessScore >= 30 ? 3 : endlessScore >= 10 ? 2 : 1.5)
     : isChallenge ? 2
-    : stage >= 151 ? 3 : stage >= 101 ? 2 : stage >= 51 ? 1.5 : 1;
+    : stage >= 201 ? 4 : stage >= 151 ? 3 : stage >= 101 ? 2 : stage >= 51 ? 1.5 : 1;
 
   const rowData = rows === 1
     ? [Array.from({ length: N }, (_, i) => i)]
@@ -2002,9 +2054,19 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
               )}
             </View>
           ) : isChallenge ? (
-            <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.55)', fontWeight: '600' }}>
-              🪙×2ボーナス · ★3目標 {colors * cap}手
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={{ fontSize: 10, color: '#F5C518', fontWeight: '900' }}>
+                🪙×{getChallengeMultiplier(challengeStreak ?? 0)}ボーナス
+              </Text>
+              {(challengeStreak ?? 0) > 0 && (
+                <Text style={{ fontSize: 10, color: '#FF8A00', fontWeight: '800' }}>
+                  🔥{challengeStreak}連続
+                </Text>
+              )}
+              <Text style={{ fontSize: 10, color: 'rgba(200,180,255,0.55)', fontWeight: '600' }}>
+                ★3目標 {colors * cap}手
+              </Text>
+            </View>
           ) : null}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -2052,6 +2114,16 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
           <Text style={{ fontSize: 17 }}>💡</Text>
           <Text style={{ fontSize: 13, fontWeight: '800', color: items.hint > 0 ? '#E8D8A0' : '#E84343' }}>
             {items.hint}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[s.itemBtn, { borderColor: (items.extratube ?? 0) > 0 ? stageColor : '#E84343', backgroundColor: 'rgba(255,255,255,0.08)' }]}
+          onPress={handleExtraTube}
+        >
+          <Text style={{ fontSize: 17 }}>🧪</Text>
+          <Text style={{ fontSize: 13, fontWeight: '800', color: (items.extratube ?? 0) > 0 ? '#E8D8A0' : '#E84343' }}>
+            {items.extratube ?? 0}
           </Text>
         </TouchableOpacity>
 
@@ -2285,7 +2357,7 @@ const MAP_PIPE_X   = SW / 2;
 const MAP_CARD_W   = Math.min(158, Math.floor((SW - 80) / 2));
 const MAP_CONN_W   = Math.max(8,  Math.floor(SW / 2 - 15 - MAP_CARD_W));
 const MAP_BAND_H   = 46;
-const TOTAL_STAGES = 200;
+const TOTAL_STAGES = 300;
 
 function buildMapLayout() {
   const items = [], yPos = {};
@@ -2712,7 +2784,7 @@ function StageSelect({ clearedStages, stageStars, stageBestTimes, perfectStreak,
                   {challengeDone ? "TODAY'S CHALLENGE DONE!" : "TODAY'S CHALLENGE"}
                 </Text>
                 <Text style={{ color: 'rgba(200,180,255,0.7)', fontSize: 11, marginTop: 1 }}>
-                  {challengeDone ? 'また明日！' : 'クリアで🪙×2ボーナス！'}
+                  {challengeDone ? 'また明日！' : `クリアで🪙×${getChallengeMultiplier(challengeStreak ?? 0)}ボーナス！`}
                 </Text>
               </View>
               {challengeStreak > 0 && (
@@ -2907,7 +2979,7 @@ export default function App() {
       AsyncStorage.getItem(COINS_EARNED_KEY),
     ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawSfx, rawHap, rawCb, rawSt, rawEl, rawMv, rawCls, rawFH, rawBT, rawCE]) => {
       if (rawP) setClearedStages(new Set(JSON.parse(rawP)));
-      if (rawI) setItems(JSON.parse(rawI));
+      if (rawI) { const loaded = JSON.parse(rawI); setItems({ ...INITIAL_ITEMS, ...loaded }); }
       if (!rawT) setTutorialDone(false);
       if (rawC) setCoins(Number(rawC));
       if (rawH) {
@@ -3036,6 +3108,8 @@ export default function App() {
     if (clearedSet.size >= 100) unlockAchievement('clear_100');
     if (clearedSet.size >= 150) unlockAchievement('clear_150');
     if (clearedSet.size >= 200) unlockAchievement('clear_200');
+    if (clearedSet.size >= 250) unlockAchievement('clear_250');
+    if (clearedSet.size >= 300) unlockAchievement('clear_300');
     if (stars === 3)            unlockAchievement('perfect');
     if (isChallenge)            unlockAchievement('challenge');
     if (streak >= 7)            unlockAchievement('daily_7');
@@ -3165,7 +3239,9 @@ export default function App() {
       50:  { title: '🏆 ステージ50クリア！', msg: 'cap-6チャレンジ開幕！さらに深みへ...\n\n🎁 ボーナス：🪙100 ＋ 💡×2 ＋ ↩×2', bonus: { coins: 100, hints: 2, undos: 2 } },
       100: { title: '🌟 ステージ100クリア！', msg: '伝説のポーション使いへの道が開かれた！\n\n🎁 ボーナス：🪙300 ＋ 💡×3 ＋ ↩×3', bonus: { coins: 300, hints: 3, undos: 3 } },
       150: { title: '💎 ステージ150クリア！', msg: '究極の挑戦者！残るは最後の50ステージ。\n\n🎁 ボーナス：🪙500 ＋ 💡×5 ＋ ↩×5', bonus: { coins: 500, hints: 5, undos: 5 } },
-      200: { title: '👑 ステージ200完全制覇！', msg: '全200ステージクリア！あなたは真の錬金術師！\n\n🎁 ボーナス：🪙1000 ＋ 💡×10 ＋ ↩×10', bonus: { coins: 1000, hints: 10, undos: 10 } },
+      200: { title: '👑 ステージ200クリア！', msg: 'cap-7の超高難度に突入！真の深淵へようこそ。\n\n🎁 ボーナス：🪙1000 ＋ 💡×10 ＋ ↩×10', bonus: { coins: 1000, hints: 10, undos: 10 } },
+      250: { title: '🌠 ステージ250クリア！', msg: '伝説の錬金術師！全300の半分以上を制した！\n\n🎁 ボーナス：🪙1500 ＋ 💡×15 ＋ ↩×15', bonus: { coins: 1500, hints: 15, undos: 15 } },
+      300: { title: '🏆 全ステージ完全制覇！', msg: '全300ステージクリア！あなたは究極の錬金術師！\n\n🎁 ボーナス：🪙3000 ＋ 💡×20 ＋ ↩×20', bonus: { coins: 3000, hints: 20, undos: 20 } },
     };
     if (!isChallenge && MILESTONES[stageNum] && !clearedStages.has(stageNum)) {
       const { title, msg, bonus } = MILESTONES[stageNum];
@@ -3324,7 +3400,7 @@ export default function App() {
         });
       });
     } else if (method === 'coins') {
-      const cost = (type === 'hint' ? ITEM_HINT_COST : ITEM_UNDO_COST) * count;
+      const cost = (type === 'hint' ? ITEM_HINT_COST : type === 'extratube' ? ITEM_EXTRATUBE_COST : ITEM_UNDO_COST) * count;
       setCoins(prev => {
         const next = Math.max(0, prev - cost);
         AsyncStorage.setItem(COINS_KEY, String(next)).catch(() => {});
@@ -3352,6 +3428,8 @@ export default function App() {
     AsyncStorage.setItem(CHALLENGE_KEY, JSON.stringify({ date: today, streak: newStreak })).catch(() => {});
     setChallengeStreak(newStreak);
     setChallengeDone(true);
+    if (newStreak >= 7)  unlockAchievement('challenge_7');
+    if (newStreak >= 30) unlockAchievement('challenge_30');
     handleStageComplete(0, coinsWon, stars, true, flags);
   }
 
@@ -3434,6 +3512,7 @@ export default function App() {
         onUseItem={handleUseItem}
         onBuyItem={handleBuyItem}
         hasFreeHint={freeHintDate !== new Date().toISOString().slice(0, 10)}
+        challengeStreak={challengeStreak}
         onClaimFreeHint={claimFreeHint}
         hearts={hearts}
         onConsumeHeart={consumeHeart}
