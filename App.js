@@ -159,8 +159,9 @@ const REVIEW_KEY      = 'ballsort_review_v1';
 const REVIEW_STAGE    = 15;
 const CHALLENGE_KEY   = 'ballsort_challenge_v1';
 const ACHIEVE_KEY     = 'ballsort_achieve_v1';
-const WEEKLY_KEY      = 'ballsort_weekly_v1';
-const ENDLESS_KEY     = 'ballsort_endless_v1';
+const WEEKLY_KEY         = 'ballsort_weekly_v1';
+const DAILY_MISSION_KEY  = 'ballsort_daily_mission_v1';
+const ENDLESS_KEY        = 'ballsort_endless_v1';
 const BGM_KEY         = 'ballsort_bgm_v1';
 const SFX_KEY         = 'ballsort_sfx_v1';
 const HAPTICS_KEY     = 'ballsort_haptics_v1';
@@ -202,6 +203,34 @@ function getWeekKey() {
 
 function initWeeklyProgress() {
   return { weekKey: getWeekKey(), progress: Object.fromEntries(WEEKLY_MISSIONS.map(m => [m.id, { current: 0, claimed: false }])) };
+}
+
+const DAILY_MISSION_POOL = [
+  { id: 'dm_clear1',    emoji: '🎯', title: '1回クリア',        desc: '今日1ステージをクリア',          target: 1, reward: 30,  type: 'clear' },
+  { id: 'dm_clear3',    emoji: '⚡', title: '3回クリア',        desc: '今日3ステージをクリア',          target: 3, reward: 70,  type: 'clear' },
+  { id: 'dm_perfect1',  emoji: '⭐', title: '3つ星クリア',      desc: '3つ星で1ステージクリア',         target: 1, reward: 45,  type: 'perfect' },
+  { id: 'dm_nohint',    emoji: '🧠', title: 'ヒント不使用',     desc: 'ヒントなしで1回クリア',          target: 1, reward: 45,  type: 'nohint' },
+  { id: 'dm_noundo',    emoji: '🎯', title: 'やり直し不使用',   desc: 'やり直しなしで1回クリア',        target: 1, reward: 45,  type: 'noundo' },
+  { id: 'dm_challenge', emoji: '🧪', title: 'チャレンジクリア', desc: 'デイリーチャレンジをクリア',     target: 1, reward: 60,  type: 'challenge' },
+  { id: 'dm_fast',      emoji: '⚡', title: '60秒クリア',       desc: '60秒以内で1回クリア',            target: 1, reward: 55,  type: 'fast' },
+  { id: 'dm_pure',      emoji: '💎', title: '純粋クリア',       desc: 'ヒント・やり直しなしで1回',      target: 1, reward: 60,  type: 'pure' },
+];
+
+function getDailyMissions(dateStr) {
+  let seed = dateStr.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const pool = [...DAILY_MISSION_POOL];
+  const result = [];
+  while (result.length < 3 && pool.length > 0) {
+    seed = ((seed * 1664525 + 1013904223) | 0) >>> 0;
+    const idx = seed % pool.length;
+    result.push(pool.splice(idx, 1)[0]);
+  }
+  return result;
+}
+
+function initDailyMissionProgress(dateStr) {
+  const missions = getDailyMissions(dateStr);
+  return { date: dateStr, progress: Object.fromEntries(missions.map(m => [m.id, { current: 0, claimed: false }])) };
 }
 
 // ── Achievements ───────────────────────────────────────────
@@ -990,71 +1019,104 @@ function AchievementListModal({ earnedAchieves, clearedCount, totalStars, endles
 }
 
 // ── Weekly Missions Modal ──────────────────────────────────
-function WeeklyMissionsModal({ weekly, coins, onClaim, onClose }) {
-  const scale = useRef(new Animated.Value(0.85)).current;
+function MissionRow({ m, p, onClaim }) {
+  const done = p.current >= m.target;
+  const pct  = Math.min(1, p.current / m.target);
+  return (
+    <View style={{
+      width: '100%',
+      backgroundColor: p.claimed ? 'rgba(39,199,87,0.1)' : done ? 'rgba(245,197,24,0.1)' : 'rgba(255,255,255,0.05)',
+      borderRadius: 14, padding: 12, borderWidth: 1,
+      borderColor: p.claimed ? '#27C757' : done ? '#F5C518' : 'rgba(255,255,255,0.12)',
+    }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <Text style={{ fontSize: 24 }}>{m.emoji}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 13, fontWeight: '800', color: p.claimed ? '#27C757' : '#E8D8A0' }}>{m.title}</Text>
+          <Text style={{ fontSize: 11, color: GREY }}>{m.desc}</Text>
+        </View>
+        <Text style={{ fontSize: 12, fontWeight: '700', color: '#F5C518' }}>🪙+{m.reward}</Text>
+      </View>
+      <View style={{ marginTop: 8, height: 5, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 3, overflow: 'hidden' }}>
+        <View style={{ width: `${pct * 100}%`, height: '100%', backgroundColor: p.claimed ? '#27C757' : done ? '#F5C518' : '#2F7BF0', borderRadius: 3 }} />
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 3 }}>
+        <Text style={{ fontSize: 10, color: GREY }}>{Math.min(p.current, m.target)}/{m.target}</Text>
+        {done && !p.claimed && (
+          <TouchableOpacity onPress={() => onClaim(m.id, m.reward)}
+            style={{ backgroundColor: '#F5C518', paddingHorizontal: 10, paddingVertical: 2, borderRadius: 8 }}>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: '#333' }}>受け取る！</Text>
+          </TouchableOpacity>
+        )}
+        {p.claimed && <Text style={{ fontSize: 10, color: '#27C757', fontWeight: '700' }}>✅ 受取済み</Text>}
+      </View>
+    </View>
+  );
+}
+
+function WeeklyMissionsModal({ weekly, dailyMissions, coins, onClaimWeekly, onClaimDaily, onClose }) {
+  const scale   = useRef(new Animated.Value(0.85)).current;
+  const [tab, setTab] = useState('daily');
   useEffect(() => {
     Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
   }, []);
+
+  const today      = new Date().toISOString().slice(0, 10);
+  const todayMissions = getDailyMissions(today);
+
+  const weeklyResetLabel = (() => {
+    const now  = new Date();
+    const next = new Date(now);
+    next.setDate(now.getDate() + (7 - now.getDay()) % 7 + 1);
+    next.setHours(0, 0, 0, 0);
+    const ms = next - now;
+    return `${Math.floor(ms / 3600000)}時間${Math.floor((ms % 3600000) / 60000)}分`;
+  })();
+
+  const dailyResetLabel = (() => {
+    const now  = new Date();
+    const next = new Date(now);
+    next.setHours(24, 0, 0, 0);
+    const ms = next - now;
+    return `${Math.floor(ms / 3600000)}時間${Math.floor((ms % 3600000) / 60000)}分`;
+  })();
+
   return (
     <Modal transparent animationType="fade">
       <View style={s.overlay}>
         <Animated.View style={[s.winCard, { transform: [{ scale }], gap: 10, paddingVertical: 24 }]}>
           <Text style={{ fontSize: 36 }}>📋</Text>
-          <Text style={[s.winTitle, { fontSize: 20 }]}>ウィークリーミッション</Text>
-          <Text style={{ fontSize: 11, color: GREY, marginTop: -6 }}>今週のリセットまで残り{
-            (() => {
-              const now  = new Date();
-              const next = new Date(now);
-              next.setDate(now.getDate() + (7 - now.getDay()) % 7 + 1);
-              next.setHours(0, 0, 0, 0);
-              const ms   = next - now;
-              const h    = Math.floor(ms / 3600000);
-              const m    = Math.floor((ms % 3600000) / 60000);
-              return `${h}時間${m}分`;
-            })()
-          }</Text>
+          <Text style={[s.winTitle, { fontSize: 20 }]}>ミッション</Text>
 
-          {WEEKLY_MISSIONS.map(m => {
-            const p       = weekly.progress[m.id] ?? { current: 0, claimed: false };
-            const done    = p.current >= m.target;
-            const claimed = p.claimed;
-            const pct     = Math.min(1, p.current / m.target);
-            return (
-              <View key={m.id} style={{
-                width: '100%',
-                backgroundColor: claimed ? 'rgba(39,199,87,0.1)' : done ? 'rgba(245,197,24,0.1)' : 'rgba(255,255,255,0.05)',
-                borderRadius: 14, padding: 12,
-                borderWidth: 1,
-                borderColor: claimed ? '#27C757' : done ? '#F5C518' : 'rgba(255,255,255,0.12)',
-              }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Text style={{ fontSize: 24 }}>{m.emoji}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '800', color: claimed ? '#27C757' : '#E8D8A0' }}>
-                      {m.title}
-                    </Text>
-                    <Text style={{ fontSize: 11, color: GREY }}>{m.desc}</Text>
-                  </View>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#F5C518' }}>🪙+{m.reward}</Text>
-                </View>
+          {/* Tab switcher */}
+          <View style={{ flexDirection: 'row', gap: 8, width: '100%' }}>
+            {[{ key: 'daily', label: '📅 デイリー' }, { key: 'weekly', label: '🗓️ ウィークリー' }].map(({ key, label }) => (
+              <TouchableOpacity
+                key={key} onPress={() => setTab(key)}
+                style={{ flex: 1, paddingVertical: 8, borderRadius: 12, alignItems: 'center',
+                  backgroundColor: tab === key ? '#8B30E8' : 'rgba(255,255,255,0.08)',
+                  borderWidth: 1, borderColor: tab === key ? '#8B30E8' : 'rgba(255,255,255,0.15)' }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: tab === key ? '#fff' : GREY }}>{label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
-                {/* Progress bar */}
-                <View style={{ marginTop: 8, height: 5, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 3, overflow: 'hidden' }}>
-                  <View style={{ width: `${pct * 100}%`, height: '100%', backgroundColor: claimed ? '#27C757' : done ? '#F5C518' : '#2F7BF0', borderRadius: 3 }} />
-                </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 3 }}>
-                  <Text style={{ fontSize: 10, color: GREY }}>{Math.min(p.current, m.target)}/{m.target}</Text>
-                  {done && !claimed && (
-                    <TouchableOpacity onPress={() => onClaim(m.id, m.reward)}
-                      style={{ backgroundColor: '#F5C518', paddingHorizontal: 10, paddingVertical: 2, borderRadius: 8 }}>
-                      <Text style={{ fontSize: 11, fontWeight: '800', color: '#333' }}>受け取る！</Text>
-                    </TouchableOpacity>
-                  )}
-                  {claimed && <Text style={{ fontSize: 10, color: '#27C757', fontWeight: '700' }}>✅ 受取済み</Text>}
-                </View>
-              </View>
-            );
-          })}
+          <Text style={{ fontSize: 11, color: GREY, marginTop: -4 }}>
+            {tab === 'daily' ? `リセットまで残り${dailyResetLabel}` : `今週のリセットまで残り${weeklyResetLabel}`}
+          </Text>
+
+          {tab === 'daily'
+            ? todayMissions.map(m => (
+                <MissionRow key={m.id} m={m}
+                  p={dailyMissions.progress[m.id] ?? { current: 0, claimed: false }}
+                  onClaim={onClaimDaily} />
+              ))
+            : WEEKLY_MISSIONS.map(m => (
+                <MissionRow key={m.id} m={m}
+                  p={weekly.progress[m.id] ?? { current: 0, claimed: false }}
+                  onClaim={onClaimWeekly} />
+              ))
+          }
 
           <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY, marginTop: 4 }]} onPress={onClose}>
             <Text style={s.nextBtnTxt}>閉じる</Text>
@@ -2548,7 +2610,7 @@ const HEART_COIN_COST  = 30;
 const REFILL_COIN_COST = 100;
 const SKIP_STAGE_COST  = 50;
 
-function StageSelect({ clearedStages, stageStars, stageBestTimes, perfectStreak, hearts, coins, challengeDone, challengeStreak, weekly, endlessHigh, onPlay, onPlayChallenge, onPlayEndless, onAddHearts, onSpendCoins, onShowMissions, onShowSettings, onShowAchievements, onSkipStage }) {
+function StageSelect({ clearedStages, stageStars, stageBestTimes, perfectStreak, hearts, coins, challengeDone, challengeStreak, weekly, dailyMissions, endlessHigh, onPlay, onPlayChallenge, onPlayEndless, onAddHearts, onSpendCoins, onShowMissions, onShowSettings, onShowAchievements, onSkipStage }) {
   const nextStage = Math.min(TOTAL_STAGES + 1, clearedStages.size > 0 ? Math.max(...clearedStages) + 1 : 1);
   const [shopOpen, setShopOpen] = useState(false);
   const [noHearts, setNoHearts] = useState(false);
@@ -2797,10 +2859,17 @@ function StageSelect({ clearedStages, stageStars, stageBestTimes, perfectStreak,
             </TouchableOpacity>
 
             {(() => {
-              const claimable = weekly && WEEKLY_MISSIONS.some(m => {
+              const today = new Date().toISOString().slice(0, 10);
+              const todayMs = getDailyMissions(today);
+              const weeklyClaimable = weekly && WEEKLY_MISSIONS.some(m => {
                 const p = weekly.progress[m.id];
                 return p && p.current >= m.target && !p.claimed;
               });
+              const dailyClaimable = dailyMissions && todayMs.some(m => {
+                const p = dailyMissions.progress[m.id];
+                return p && p.current >= m.target && !p.claimed;
+              });
+              const claimable = weeklyClaimable || dailyClaimable;
               return (
                 <TouchableOpacity onPress={onShowMissions} activeOpacity={0.82} style={{
                   flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
@@ -2811,10 +2880,10 @@ function StageSelect({ clearedStages, stageStars, stageBestTimes, perfectStreak,
                   <Text style={{ fontSize: 20 }}>📋</Text>
                   <View>
                     <Text style={{ color: claimable ? '#F5C518' : '#E8D8A0', fontSize: 13, fontWeight: '800', letterSpacing: 1 }}>
-                      WEEKLY MISSIONS
+                      MISSIONS
                     </Text>
                     <Text style={{ color: 'rgba(200,180,255,0.65)', fontSize: 11, marginTop: 1 }}>
-                      {claimable ? '🎁 報酬が受け取れます！' : `${WEEKLY_MISSIONS.filter(m => weekly?.progress[m.id]?.claimed).length}/${WEEKLY_MISSIONS.length} 達成`}
+                      {claimable ? '🎁 報酬が受け取れます！' : 'デイリー・ウィークリー'}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -2934,6 +3003,7 @@ export default function App() {
   const [challengeDone, setChallengeDone] = useState(false);
   const [challengeStreak, setChallengeStreak] = useState(0);
   const [weekly, setWeekly]               = useState(initWeeklyProgress);
+  const [dailyMissions, setDailyMissions] = useState(() => initDailyMissionProgress(new Date().toISOString().slice(0, 10)));
   const [showMissions, setShowMissions]   = useState(false);
   const [bgmOn, setBgmOn]                 = useState(true);
   const [sfxOn, setSfxOn]                 = useState(true);
@@ -2966,6 +3036,7 @@ export default function App() {
       AsyncStorage.getItem(ACHIEVE_KEY),
       AsyncStorage.getItem(CHALLENGE_KEY),
       AsyncStorage.getItem(WEEKLY_KEY),
+      AsyncStorage.getItem(DAILY_MISSION_KEY),
       AsyncStorage.getItem(BGM_KEY),
       AsyncStorage.getItem(SFX_KEY),
       AsyncStorage.getItem(HAPTICS_KEY),
@@ -2977,7 +3048,7 @@ export default function App() {
       AsyncStorage.getItem(FREE_HINT_KEY),
       AsyncStorage.getItem(BEST_TIME_KEY),
       AsyncStorage.getItem(COINS_EARNED_KEY),
-    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawBgm, rawSfx, rawHap, rawCb, rawSt, rawEl, rawMv, rawCls, rawFH, rawBT, rawCE]) => {
+    ]).then(([rawP, rawI, rawT, rawH, rawC, rawD, rawR, rawA, rawCh, rawW, rawDM, rawBgm, rawSfx, rawHap, rawCb, rawSt, rawEl, rawMv, rawCls, rawFH, rawBT, rawCE]) => {
       if (rawP) setClearedStages(new Set(JSON.parse(rawP)));
       if (rawI) { const loaded = JSON.parse(rawI); setItems({ ...INITIAL_ITEMS, ...loaded }); }
       if (!rawT) setTutorialDone(false);
@@ -3019,6 +3090,10 @@ export default function App() {
       if (rawW) {
         const w = JSON.parse(rawW);
         setWeekly(w.weekKey === thisWeek ? w : initWeeklyProgress());
+      }
+      if (rawDM) {
+        const dm = JSON.parse(rawDM);
+        setDailyMissions(dm.date === today ? dm : initDailyMissionProgress(today));
       }
       // BGM / SFX設定
       const bgmSaved = rawBgm !== null ? rawBgm === '1' : true;
@@ -3258,6 +3333,7 @@ export default function App() {
       setTimeout(() => Alert.alert(title, msg, [{ text: 'すごい！' }]), 800);
     }
     updateWeeklyProgress(stars, isChallenge, flags);
+    updateDailyMissionProgress(stars, isChallenge, flags);
     const prevStageStars = stageStars[stageNum] ?? 0;
     const addedStars = !isChallenge && stageNum > 0 && stars > prevStageStars ? stars - prevStageStars : 0;
     const totalStars = Object.values(stageStars).reduce((a, b) => a + b, 0) + addedStars;
@@ -3306,6 +3382,50 @@ export default function App() {
       });
       const next = { weekKey: thisWeek, progress: p };
       AsyncStorage.setItem(WEEKLY_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }
+
+  function updateDailyMissionProgress(stars, isChallenge, flags = {}) {
+    const today = new Date().toISOString().slice(0, 10);
+    setDailyMissions(prev => {
+      const base = prev.date === today ? prev : initDailyMissionProgress(today);
+      const p = { ...base.progress };
+      const missions = getDailyMissions(today);
+      missions.forEach(m => {
+        if (!p[m.id]) return;
+        let hit = false;
+        if (m.type === 'clear')     hit = true;
+        if (m.type === 'perfect'  && stars === 3)         hit = true;
+        if (m.type === 'nohint'   && flags.noHint)        hit = true;
+        if (m.type === 'noundo'   && flags.noUndo)        hit = true;
+        if (m.type === 'challenge' && isChallenge)        hit = true;
+        if (m.type === 'fast'     && flags.time <= 60)    hit = true;
+        if (m.type === 'pure'     && flags.noHint && flags.noUndo) hit = true;
+        if (hit && p[m.id].current < m.target) {
+          const prevCurrent = p[m.id].current;
+          p[m.id] = { ...p[m.id], current: prevCurrent + 1 };
+          if (!p[m.id].claimed && prevCurrent + 1 >= m.target) {
+            showToast({ id: `dmission_${m.id}`, emoji: m.emoji, header: 'デイリーミッション達成！', title: m.title, desc: `🪙×${m.reward} が受け取れます！` });
+          }
+        }
+      });
+      const next = { date: today, progress: p };
+      AsyncStorage.setItem(DAILY_MISSION_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }
+
+  function claimDailyMissionReward(missionId, reward) {
+    setDailyMissions(prev => {
+      const p = { ...prev.progress, [missionId]: { ...prev.progress[missionId], claimed: true } };
+      const next = { ...prev, progress: p };
+      AsyncStorage.setItem(DAILY_MISSION_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+    setCoins(prev => {
+      const next = prev + reward;
+      AsyncStorage.setItem(COINS_KEY, String(next)).catch(() => {});
       return next;
     });
   }
@@ -3533,6 +3653,7 @@ export default function App() {
         coins={coins}
         challengeDone={challengeDone}
         weekly={weekly}
+        dailyMissions={dailyMissions}
         endlessHigh={endlessHigh}
         onPlayChallenge={handlePlayChallenge}
         onPlayEndless={handlePlayEndless}
@@ -3570,8 +3691,10 @@ export default function App() {
       {showMissions && (
         <WeeklyMissionsModal
           weekly={weekly}
+          dailyMissions={dailyMissions}
           coins={coins}
-          onClaim={(id, reward) => claimWeeklyReward(id, reward)}
+          onClaimWeekly={(id, reward) => claimWeeklyReward(id, reward)}
+          onClaimDaily={(id, reward) => claimDailyMissionReward(id, reward)}
           onClose={() => setShowMissions(false)}
         />
       )}
