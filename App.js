@@ -274,6 +274,7 @@ const ACHIEVEMENTS = [
   { id: 'coins_2000',   emoji: '💎', title: '大富豪',                desc: 'コインを2000枚以上獲得（累計）' },
   { id: 'perfect_10',   emoji: '🌈', title: '完璧主義者',            desc: '10ステージ以上で3つ星を獲得' },
   { id: 'perfect_50',   emoji: '👑', title: '無欠の覇者',            desc: '50ステージ以上で3つ星を獲得' },
+  { id: 'perfect_100',  emoji: '🌟', title: '百星の完璧者',          desc: '100ステージ以上で3つ星を獲得' },
   { id: 'challenge_7',  emoji: '🔥', title: '週間の炎',              desc: 'デイリーチャレンジを7日連続クリア' },
   { id: 'challenge_30', emoji: '🌋', title: '不滅の連鎖',            desc: 'デイリーチャレンジを30日連続クリア' },
 ];
@@ -3203,6 +3204,7 @@ export default function App() {
     if (totalStars >= 900)      unlockAchievement('stars_900');
     if (threeStarCount >= 10)   unlockAchievement('perfect_10');
     if (threeStarCount >= 50)   unlockAchievement('perfect_50');
+    if (threeStarCount >= 100)  unlockAchievement('perfect_100');
     if (coinsEarned >= 500)     unlockAchievement('coins_500');
     if (coinsEarned >= 2000)    unlockAchievement('coins_2000');
   }
@@ -3347,10 +3349,31 @@ export default function App() {
     const STAR_MILESTONES = {
       100: { title: '🌟 100個の星を獲得！', msg: '全ステージ合計100個の星を集めました！\n百星の錬金術師の称号です！' },
       300: { title: '💠 300個の星を獲得！', msg: '全ステージ合計300個の星を集めました！\nあなたは伝説の三百星の覇者！' },
+      600: { title: '🌠 600個の星を獲得！', msg: '全ステージ合計600個の星を集めました！\n六百星の伝説に輝きます！' },
+      900: { title: '🌌 900個の星、完全制覇！', msg: '全300ステージで3つ星を達成！\n究極の錬金術師です！' },
     };
     for (const [threshold, { title, msg }] of Object.entries(STAR_MILESTONES)) {
       if (prevTotal < Number(threshold) && totalStars >= Number(threshold)) {
         setTimeout(() => Alert.alert(title, msg, [{ text: 'OK' }]), 1400);
+      }
+    }
+
+    // バンドコンプリートチェック（初回のみ）
+    if (!isChallenge && stageNum > 0) {
+      const band = BANDS.find(b => b.end === stageNum);
+      if (band) {
+        const allCleared = Array.from({ length: band.end - band.start + 1 }, (_, i) => clearedStages.has(band.start + i) || stageNum === band.start + i);
+        if (allCleared.every(Boolean) && !clearedStages.has(stageNum)) {
+          const bandBonus = 50 + Math.floor((band.start - 1) / 10) * 10;
+          setTimeout(() => {
+            setCoins(prev => {
+              const next = prev + bandBonus;
+              AsyncStorage.setItem(COINS_KEY, String(next)).catch(() => {});
+              return next;
+            });
+            showToast({ id: `band_${band.name}`, emoji: '🎊', header: `${band.name} コンプリート！`, title: '全10ステージ制覇', desc: `🪙+${bandBonus} ボーナス獲得！` });
+          }, 1200);
+        }
       }
     }
     const threeStarCount = Object.values(stageStars).filter(s => s === 3).length + (!isChallenge && stageNum > 0 && stars === 3 && (stageStars[stageNum] ?? 0) < 3 ? 1 : 0);
