@@ -192,6 +192,8 @@ const WEEKLY_MISSIONS = [
   { id: 'w_challenge', emoji: '🧪', title: 'チャレンジクリア',   desc: 'デイリーチャレンジをクリア',  target: 1,  reward: 60,  type: 'challenge' },
   { id: 'w_clear15',   emoji: '🏅', title: '15ステージクリア',   desc: '今週15ステージをクリア',      target: 15, reward: 200, type: 'clear' },
   { id: 'w_nohint3',   emoji: '🧠', title: 'ヒントなし3回',      desc: 'ヒントなしで3回クリア',       target: 3,  reward: 100, type: 'nohint' },
+  { id: 'w_perfect5',  emoji: '💎', title: '3つ星を5回',         desc: '3つ星で5回クリア',            target: 5,  reward: 130, type: 'perfect' },
+  { id: 'w_pure3',     emoji: '🔮', title: '純粋クリア3回',      desc: 'ヒント・やり直しなしで3回',   target: 3,  reward: 150, type: 'pure' },
 ];
 
 function getWeekKey() {
@@ -258,6 +260,8 @@ const ACHIEVEMENTS = [
   { id: 'endless_50',   emoji: '🌠', title: '伝説のポーション師',   desc: 'エンドレスモードで50ステージクリア' },
   { id: 'stars_100',    emoji: '🌟', title: '百星の錬金術師',      desc: 'ステージ合計100個の星を獲得' },
   { id: 'stars_300',    emoji: '💠', title: '三百星の覇者',        desc: 'ステージ合計300個の星を獲得' },
+  { id: 'stars_600',    emoji: '🌠', title: '六百星の伝説',        desc: 'ステージ合計600個の星を獲得' },
+  { id: 'stars_900',    emoji: '🌌', title: '満天の錬金術師',      desc: '全ステージで3つ星（900星）を獲得' },
   { id: 'endless_100',  emoji: '🪐', title: '時空の支配者',          desc: 'エンドレスモードで100ステージクリア' },
   { id: 'moves_100',    emoji: '👐', title: '百手の職人',            desc: '合計100手を達成' },
   { id: 'moves_500',    emoji: '🔮', title: '五百手の魔術師',        desc: '合計500手を達成' },
@@ -3195,6 +3199,8 @@ export default function App() {
     if (flags.time > 0 && flags.time <= 30) unlockAchievement('fast_30');
     if (totalStars >= 100)      unlockAchievement('stars_100');
     if (totalStars >= 300)      unlockAchievement('stars_300');
+    if (totalStars >= 600)      unlockAchievement('stars_600');
+    if (totalStars >= 900)      unlockAchievement('stars_900');
     if (threeStarCount >= 10)   unlockAchievement('perfect_10');
     if (threeStarCount >= 50)   unlockAchievement('perfect_50');
     if (coinsEarned >= 500)     unlockAchievement('coins_500');
@@ -3370,9 +3376,11 @@ export default function App() {
       inc('w_clear3');
       inc('w_clear7');
       inc('w_clear15');
-      if (stars === 3)       inc('w_perfect3');
-      if (isChallenge)       inc('w_challenge');
-      if (flags.noHint)      inc('w_nohint3');
+      if (stars === 3)                    inc('w_perfect3');
+      if (stars === 3)                    inc('w_perfect5');
+      if (isChallenge)                    inc('w_challenge');
+      if (flags.noHint)                   inc('w_nohint3');
+      if (flags.noHint && flags.noUndo)   inc('w_pure3');
       WEEKLY_MISSIONS.forEach(m => {
         const prevP = base.progress[m.id];
         const newP  = p[m.id];
