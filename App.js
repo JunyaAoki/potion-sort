@@ -632,7 +632,9 @@ const TUTORIAL_STEPS = [
   { emoji: '➡️', title: '移動先をタップ',  desc: '移動先のチューブをタップします。\n同じ色か、空のチューブに移動できます。' },
   { emoji: '🎯', title: 'ゴール！',         desc: '全てのチューブを\n同じ色の液体で揃えるとクリアです！' },
   { emoji: '💡', title: 'ヒントを活用しよう', desc: '迷ったら💡ヒントボタンを使いましょう。\n最適な一手をAIが教えてくれます！' },
-  { emoji: '↩', title: 'やり直せます',      desc: '↩ボタンで一手だけ戻せます。\nミスしても焦らずプレイしてください！' },
+  { emoji: '↩', title: 'やり直せます',        desc: '↩ボタンで一手だけ戻せます。\nミスしても焦らずプレイしてください！' },
+  { emoji: '🧪', title: '空チューブを追加',  desc: '🧪ボタンで空のチューブを1本追加できます。\n詰まったときの切り札として使いましょう！' },
+  { emoji: '🔀', title: 'シャッフルで再挑戦', desc: '🔀ボタンでパズルを別の配置に変えられます。\n全く違う角度から攻略できます！' },
 ];
 
 function TutorialOverlay({ step, onNext, onSkip }) {
@@ -3005,9 +3007,27 @@ function StageSelect({ clearedStages, stageStars, stageBestTimes, perfectStreak,
                     <Text style={{ color: claimable ? '#F5C518' : '#E8D8A0', fontSize: 13, fontWeight: '800', letterSpacing: 1 }}>
                       MISSIONS
                     </Text>
-                    <Text style={{ color: 'rgba(200,180,255,0.65)', fontSize: 11, marginTop: 1 }}>
-                      {claimable ? '🎁 報酬が受け取れます！' : 'デイリー・ウィークリー'}
-                    </Text>
+                    {(() => {
+                      const dms = getDailyMissions(new Date().toISOString().slice(0, 10));
+                      return (
+                        <View style={{ flexDirection: 'row', gap: 4, marginTop: 3 }}>
+                          {dms.map(m => {
+                            const p = dailyMissions?.progress[m.id];
+                            const done = p && p.current >= m.target;
+                            const started = p && p.current > 0 && !done;
+                            const color = done ? '#27C757' : started ? '#F5C518' : 'rgba(255,255,255,0.2)';
+                            return (
+                              <View key={m.id} style={{
+                                width: 8, height: 8, borderRadius: 4,
+                                backgroundColor: color,
+                                borderWidth: done ? 0 : 1,
+                                borderColor: started ? '#F5C518' : 'rgba(255,255,255,0.3)',
+                              }} />
+                            );
+                          })}
+                        </View>
+                      );
+                    })()}
                   </View>
                 </TouchableOpacity>
               );
