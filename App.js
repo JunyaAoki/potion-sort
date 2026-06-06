@@ -271,8 +271,10 @@ const ACHIEVEMENTS = [
   { id: 'clears_50',    emoji: '🌡️', title: '炎の試練者',            desc: '累計50回ステージをクリア' },
   { id: 'clears_100',   emoji: '🏺', title: '不滅の錬金師',          desc: '累計100回ステージをクリア' },
   { id: 'fast_30',      emoji: '⚡', title: '閃光の錬金術師',        desc: '30秒以内でステージをクリア' },
+  { id: 'fast_10',      emoji: '🌪️', title: '瞬殺の魔術師',          desc: '10秒以内でステージをクリア' },
   { id: 'coins_500',    emoji: '💰', title: '資産家',                desc: 'コインを500枚以上獲得（累計）' },
   { id: 'coins_2000',   emoji: '💎', title: '大富豪',                desc: 'コインを2000枚以上獲得（累計）' },
+  { id: 'coins_5000',   emoji: '🤑', title: '超大富豪',              desc: 'コインを5000枚以上獲得（累計）' },
   { id: 'perfect_10',   emoji: '🌈', title: '完璧主義者',            desc: '10ステージ以上で3つ星を獲得' },
   { id: 'perfect_50',   emoji: '👑', title: '無欠の覇者',            desc: '50ステージ以上で3つ星を獲得' },
   { id: 'perfect_100',  emoji: '🌟', title: '百星の完璧者',          desc: '100ステージ以上で3つ星を獲得' },
@@ -975,6 +977,7 @@ function AchievementListModal({ earnedAchieves, clearedCount, totalStars, threeS
     clears_100:   { cur: totalClears ?? 0,  max: 100 },
     coins_500:    { cur: totalCoinsEarned ?? 0, max: 500 },
     coins_2000:   { cur: totalCoinsEarned ?? 0, max: 2000 },
+    coins_5000:   { cur: totalCoinsEarned ?? 0, max: 5000 },
     perfect_10:   { cur: threeStarCount ?? 0, max: 10 },
     perfect_50:   { cur: threeStarCount ?? 0, max: 50 },
     perfect_100:  { cur: threeStarCount ?? 0, max: 100 },
@@ -2214,7 +2217,7 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
       {/* Item bar */}
       <View style={{
         flexDirection: 'row', alignItems: 'center',
-        backgroundColor: 'rgba(10,6,30,0.75)', paddingHorizontal: 16, paddingBottom: 10, paddingTop: 6, gap: 10,
+        backgroundColor: 'rgba(10,6,30,0.75)', paddingHorizontal: 10, paddingBottom: 10, paddingTop: 6, gap: 6,
         borderBottomWidth: 1, borderBottomColor: 'rgba(180,140,55,0.25)',
       }}>
         {(() => {
@@ -3284,6 +3287,7 @@ export default function App() {
     if (flags.noHint && flags.noUndo) unlockAchievement('pure_clear');
     if (flags.exactOpt)               unlockAchievement('speed_clear');
     if (flags.time > 0 && flags.time <= 30) unlockAchievement('fast_30');
+    if (flags.time > 0 && flags.time <= 10) unlockAchievement('fast_10');
     if (totalStars >= 100)      unlockAchievement('stars_100');
     if (totalStars >= 300)      unlockAchievement('stars_300');
     if (totalStars >= 600)      unlockAchievement('stars_600');
@@ -3293,6 +3297,7 @@ export default function App() {
     if (threeStarCount >= 100)  unlockAchievement('perfect_100');
     if (coinsEarned >= 500)     unlockAchievement('coins_500');
     if (coinsEarned >= 2000)    unlockAchievement('coins_2000');
+    if (coinsEarned >= 5000)    unlockAchievement('coins_5000');
   }
 
   function saveHearts(h) {
@@ -3874,7 +3879,7 @@ const s = StyleSheet.create({
   headerTitle:   { fontSize: 20, fontWeight: '700', color: DARK },
   board:         { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20 },
   tubeRow:       { flexDirection: 'row', gap: 12, alignItems: 'flex-end' },
-  itemBtn:       { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22, borderWidth: 1.5, backgroundColor: '#F5F6FB' },
+  itemBtn:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, backgroundColor: '#F5F6FB' },
   restartBtn:    { width: 42, height: 42, backgroundColor: '#E4E6F0', borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
   restartBtnTxt: { fontSize: 20 },
   overlay:       { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center' },
