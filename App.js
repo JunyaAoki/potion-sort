@@ -301,13 +301,13 @@ function getDailyChallengeConfig() {
   return { colors, cap, empty, seed, dateStr: today };
 }
 const DAILY_REWARDS   = [
-  { day: 1, coins: 25,  hearts: 0, hints: 0, undos: 0 },
-  { day: 2, coins: 35,  hearts: 0, hints: 1, undos: 0 },
-  { day: 3, coins: 50,  hearts: 1, hints: 0, undos: 1 },
-  { day: 4, coins: 60,  hearts: 0, hints: 2, undos: 0 },
-  { day: 5, coins: 80,  hearts: 1, hints: 0, undos: 2 },
-  { day: 6, coins: 100, hearts: 0, hints: 2, undos: 2 },
-  { day: 7, coins: 150, hearts: 3, hints: 3, undos: 3 },
+  { day: 1, coins: 25,  hearts: 0, hints: 0, undos: 0, extratubes: 0, shuffles: 0 },
+  { day: 2, coins: 35,  hearts: 0, hints: 1, undos: 0, extratubes: 0, shuffles: 0 },
+  { day: 3, coins: 50,  hearts: 1, hints: 0, undos: 1, extratubes: 1, shuffles: 0 },
+  { day: 4, coins: 60,  hearts: 0, hints: 2, undos: 0, extratubes: 0, shuffles: 1 },
+  { day: 5, coins: 80,  hearts: 1, hints: 1, undos: 2, extratubes: 1, shuffles: 1 },
+  { day: 6, coins: 100, hearts: 0, hints: 2, undos: 2, extratubes: 1, shuffles: 1 },
+  { day: 7, coins: 200, hearts: 3, hints: 3, undos: 3, extratubes: 2, shuffles: 2 },
 ];
 
 function getEndlessConfig(score) {
@@ -755,6 +755,18 @@ function DailyBonusModal({ streak, reward, onClaim }) {
                   <Text style={{ fontSize: 15, fontWeight: '800', color: '#E8D8A0' }}>↩×{reward.undos}</Text>
                 </>
               )}
+              {(reward.extratubes ?? 0) > 0 && (
+                <>
+                  <Text style={{ fontSize: 18, color: GREY }}>＋</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: '#E8D8A0' }}>🧪×{reward.extratubes}</Text>
+                </>
+              )}
+              {(reward.shuffles ?? 0) > 0 && (
+                <>
+                  <Text style={{ fontSize: 18, color: GREY }}>＋</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: '#E8D8A0' }}>🔀×{reward.shuffles}</Text>
+                </>
+              )}
             </View>
           </View>
 
@@ -1183,7 +1195,7 @@ function WeeklyMissionsModal({ weekly, dailyMissions, coins, onClaimWeekly, onCl
 // ── Win Overlay ────────────────────────────────────────────
 const SPARKLE_EMOJIS = ['⭐','✨','💫','🌟','⚡','💛','🔆','🌠'];
 
-function WinOverlay({ moves, stage, stageColor, coinsEarned, optMoves, prevBestStars, elapsed, prevBestTime, isEndless, isChallenge, endlessScore, onNext, onReplay }) {
+function WinOverlay({ moves, stage, stageColor, coinsEarned, optMoves, prevBestStars, elapsed, prevBestTime, isEndless, isChallenge, endlessScore, noItems, onNext, onReplay }) {
   const stars    = moves <= optMoves ? 3 : moves <= optMoves * 1.7 ? 2 : 1;
   const isNewRecord = stars > (prevBestStars ?? 0);
   const isTimeRecord = !isEndless && !isChallenge && elapsed > 0 && (prevBestTime === undefined || elapsed < prevBestTime);
@@ -1320,6 +1332,12 @@ function WinOverlay({ moves, stage, stageColor, coinsEarned, optMoves, prevBestS
             ) : (
               <Text style={{ fontSize: 11, color: '#fff', fontWeight: '900', letterSpacing: 1 }}>🎉 初クリア！</Text>
             )}
+          </View>
+        )}
+
+        {noItems && !isEndless && (
+          <View style={{ backgroundColor: 'rgba(39,199,87,0.2)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, marginTop: -4, borderWidth: 1, borderColor: '#27C757' }}>
+            <Text style={{ fontSize: 11, color: '#27C757', fontWeight: '900', letterSpacing: 1 }}>🫙 完全素手クリア！</Text>
           </View>
         )}
 
@@ -2398,6 +2416,7 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
           prevBestStars={bestStars}
           elapsed={elapsed} prevBestTime={bestTime}
           isEndless={isEndless} isChallenge={isChallenge} endlessScore={endlessScore}
+          noItems={!usedHintRef.current && !usedUndoRef.current && !usedExtraTubeRef.current && !usedShuffleRef.current}
           onNext={onNext} onReplay={restart}
         />
       )}
@@ -3293,11 +3312,13 @@ export default function App() {
       return next;
     });
     if (dailyBonus.reward.hearts > 0) addHearts(dailyBonus.reward.hearts);
-    const hints = dailyBonus.reward.hints ?? 0;
-    const undos = dailyBonus.reward.undos ?? 0;
-    if (hints > 0 || undos > 0) {
+    const hints      = dailyBonus.reward.hints ?? 0;
+    const undos      = dailyBonus.reward.undos ?? 0;
+    const extratubes = dailyBonus.reward.extratubes ?? 0;
+    const shuffles   = dailyBonus.reward.shuffles ?? 0;
+    if (hints > 0 || undos > 0 || extratubes > 0 || shuffles > 0) {
       setItems(prev => {
-        const next = { hint: prev.hint + hints, undo: prev.undo + undos };
+        const next = { ...prev, hint: prev.hint + hints, undo: prev.undo + undos, extratube: (prev.extratube ?? 0) + extratubes, shuffle: (prev.shuffle ?? 0) + shuffles };
         saveItems(next);
         return next;
       });
