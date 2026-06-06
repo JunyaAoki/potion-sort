@@ -142,10 +142,11 @@ function getStageConfig(stageNum) {
   return { ...TIERS[idx], stageColor: band.color };
 }
 
-const INITIAL_ITEMS      = { undo: 5, hint: 5, extratube: 2 };
+const INITIAL_ITEMS      = { undo: 5, hint: 5, extratube: 2, shuffle: 2 };
 const ITEM_HINT_COST     = 30;
 const ITEM_UNDO_COST     = 20;
 const ITEM_EXTRATUBE_COST = 50;
+const ITEM_SHUFFLE_COST  = 40;
 const ITEMS_KEY       = 'ballsort_items_v1';
 const PROGRESS_KEY    = 'ballsort_progress_v2';
 const TUTORIAL_KEY    = 'ballsort_tutorial_v1';
@@ -838,8 +839,8 @@ function ReviewModal({ onRate, onLater, onNo }) {
 
 // ── Purchase Modal ─────────────────────────────────────────
 function PurchaseModal({ type, coins, hasFreeHint, onClose, onWatchAd, onBuyWithCoins, onClaimFree }) {
-  const label = type === 'undo' ? 'やり直し' : type === 'extratube' ? '空チューブ' : 'ヒント';
-  const cost  = type === 'hint' ? ITEM_HINT_COST : type === 'extratube' ? ITEM_EXTRATUBE_COST : ITEM_UNDO_COST;
+  const label = type === 'undo' ? 'やり直し' : type === 'extratube' ? '空チューブ' : type === 'shuffle' ? 'シャッフル' : 'ヒント';
+  const cost  = type === 'hint' ? ITEM_HINT_COST : type === 'extratube' ? ITEM_EXTRATUBE_COST : type === 'shuffle' ? ITEM_SHUFFLE_COST : ITEM_UNDO_COST;
   const scale = useRef(new Animated.Value(0.8)).current;
   useEffect(() => {
     Animated.spring(scale, { toValue: 1, friction: 6, useNativeDriver: true }).start();
@@ -942,12 +943,44 @@ function SettingsModal({ bgmOn, sfxOn, hapticsOn, colorblind, onToggleBGM, onTog
 }
 
 // ── Achievement List Modal ─────────────────────────────────
-function AchievementListModal({ earnedAchieves, clearedCount, totalStars, endlessHigh, totalMoves, totalClears, onClose }) {
+function AchievementListModal({ earnedAchieves, clearedCount, totalStars, threeStarCount, endlessHigh, totalMoves, totalClears, totalCoinsEarned, challengeStreak, onClose }) {
   const scale = useRef(new Animated.Value(0.85)).current;
   useEffect(() => {
     Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
   }, []);
   const earned = earnedAchieves.size;
+  const progressMap = {
+    clear_5:      { cur: clearedCount,      max: 5 },
+    clear_10:     { cur: clearedCount,      max: 10 },
+    clear_30:     { cur: clearedCount,      max: 30 },
+    clear_50:     { cur: clearedCount,      max: 50 },
+    clear_100:    { cur: clearedCount,      max: 100 },
+    clear_150:    { cur: clearedCount,      max: 150 },
+    clear_200:    { cur: clearedCount,      max: 200 },
+    clear_250:    { cur: clearedCount,      max: 250 },
+    clear_300:    { cur: clearedCount,      max: 300 },
+    stars_100:    { cur: totalStars,        max: 100 },
+    stars_300:    { cur: totalStars,        max: 300 },
+    stars_600:    { cur: totalStars,        max: 600 },
+    stars_900:    { cur: totalStars,        max: 900 },
+    endless_10:   { cur: endlessHigh,       max: 10 },
+    endless_20:   { cur: endlessHigh,       max: 20 },
+    endless_50:   { cur: endlessHigh,       max: 50 },
+    endless_100:  { cur: endlessHigh,       max: 100 },
+    moves_100:    { cur: totalMoves ?? 0,   max: 100 },
+    moves_500:    { cur: totalMoves ?? 0,   max: 500 },
+    moves_1000:   { cur: totalMoves ?? 0,   max: 1000 },
+    clears_10:    { cur: totalClears ?? 0,  max: 10 },
+    clears_50:    { cur: totalClears ?? 0,  max: 50 },
+    clears_100:   { cur: totalClears ?? 0,  max: 100 },
+    coins_500:    { cur: totalCoinsEarned ?? 0, max: 500 },
+    coins_2000:   { cur: totalCoinsEarned ?? 0, max: 2000 },
+    perfect_10:   { cur: threeStarCount ?? 0, max: 10 },
+    perfect_50:   { cur: threeStarCount ?? 0, max: 50 },
+    perfect_100:  { cur: threeStarCount ?? 0, max: 100 },
+    challenge_7:  { cur: challengeStreak ?? 0, max: 7 },
+    challenge_30: { cur: challengeStreak ?? 0, max: 30 },
+  };
   return (
     <Modal transparent animationType="fade">
       <View style={s.overlay}>
@@ -990,23 +1023,34 @@ function AchievementListModal({ earnedAchieves, clearedCount, totalStars, endles
           <ScrollView style={{ width: '100%' }} showsVerticalScrollIndicator={false}>
             {ACHIEVEMENTS.map(a => {
               const isEarned = earnedAchieves.has(a.id);
+              const prog = progressMap[a.id];
+              const pct  = prog ? Math.min(1, prog.cur / prog.max) : 0;
+              const showProg = !isEarned && prog && prog.cur > 0;
               return (
                 <View key={a.id} style={{
                   flexDirection: 'row', alignItems: 'center', gap: 12,
                   paddingVertical: 10, paddingHorizontal: 10, marginBottom: 6, borderRadius: 14,
                   backgroundColor: isEarned ? 'rgba(245,197,24,0.10)' : 'rgba(255,255,255,0.04)',
                   borderWidth: 1.5,
-                  borderColor: isEarned ? 'rgba(245,197,24,0.45)' : 'rgba(255,255,255,0.08)',
-                  opacity: isEarned ? 1 : 0.5,
+                  borderColor: isEarned ? 'rgba(245,197,24,0.45)' : showProg ? 'rgba(139,48,232,0.35)' : 'rgba(255,255,255,0.08)',
+                  opacity: isEarned ? 1 : showProg ? 0.85 : 0.45,
                 }}>
-                  <Text style={{ fontSize: 28 }}>{a.emoji}</Text>
+                  <Text style={{ fontSize: 28 }}>{isEarned || showProg ? a.emoji : '🔒'}</Text>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '800', color: isEarned ? '#E8D8A0' : GREY }}>
-                      {isEarned ? a.title : '???'}
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: isEarned ? '#E8D8A0' : showProg ? '#C0A8F0' : GREY }}>
+                      {isEarned ? a.title : showProg ? a.title : '???'}
                     </Text>
                     <Text style={{ fontSize: 11, color: GREY }}>
-                      {isEarned ? a.desc : '???'}
+                      {isEarned ? a.desc : showProg ? a.desc : '???'}
                     </Text>
+                    {showProg && (
+                      <View style={{ marginTop: 5, gap: 2 }}>
+                        <View style={{ height: 4, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 2, overflow: 'hidden' }}>
+                          <View style={{ width: `${pct * 100}%`, height: '100%', backgroundColor: '#8B30E8', borderRadius: 2 }} />
+                        </View>
+                        <Text style={{ fontSize: 9, color: 'rgba(192,168,240,0.7)' }}>{prog.cur}/{prog.max}</Text>
+                      </View>
+                    )}
                   </View>
                   {isEarned && <Text style={{ fontSize: 18 }}>✅</Text>}
                 </View>
@@ -1998,6 +2042,21 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
     hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
   }
 
+  const shuffleCountRef = useRef(0);
+  function handleShuffle() {
+    if (won || isAnimating.current) return;
+    if ((items.shuffle ?? 0) <= 0) { setPurchaseType('shuffle'); return; }
+    shuffleCountRef.current += 1;
+    const newSeed = levelSeed + shuffleCountRef.current * 9973;
+    usedHintRef.current = true;
+    onUseItem('shuffle');
+    setHistory([]);
+    setMoves(0);
+    setSelected(null);
+    setTubes(makeLevel(colors, cap, empty, newSeed));
+    hapticImpact(Haptics.ImpactFeedbackStyle.Heavy);
+  }
+
   function restart() {
     clearMidgame();
     startTimeRef.current = Date.now();
@@ -2191,6 +2250,16 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
           <Text style={{ fontSize: 17 }}>🧪</Text>
           <Text style={{ fontSize: 13, fontWeight: '800', color: (items.extratube ?? 0) > 0 ? '#E8D8A0' : '#E84343' }}>
             {items.extratube ?? 0}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[s.itemBtn, { borderColor: (items.shuffle ?? 0) > 0 ? stageColor : '#E84343', backgroundColor: 'rgba(255,255,255,0.08)' }]}
+          onPress={handleShuffle}
+        >
+          <Text style={{ fontSize: 17 }}>🔀</Text>
+          <Text style={{ fontSize: 13, fontWeight: '800', color: (items.shuffle ?? 0) > 0 ? '#E8D8A0' : '#E84343' }}>
+            {items.shuffle ?? 0}
           </Text>
         </TouchableOpacity>
 
@@ -2449,6 +2518,7 @@ function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandCo
   const scale    = useRef(new Animated.Value(1)).current;
   const slideX   = useRef(new Animated.Value(side === 'left' ? -70 : 70)).current;
   const mountOp  = useRef(new Animated.Value(0)).current;
+  const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
     const delay = Math.min((animIndex ?? 0) * 30, 600);
@@ -2462,7 +2532,7 @@ function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandCo
   }, []);
 
   function handlePress() {
-    if (isLocked) return;
+    if (isLocked) { setShowPreview(p => !p); return; }
     Animated.sequence([
       Animated.timing(scale, { toValue: 0.91, duration: 90, useNativeDriver: true }),
       Animated.spring(scale, { toValue: 1, friction: 4, useNativeDriver: true }),
@@ -2514,6 +2584,22 @@ function StageMapNode({ num, side, isCleared, isCurrent, isLocked, stars, bandCo
             <View style={{ alignItems: 'center' }}>
               <Text style={{ fontSize: 18, lineHeight: 22 }}>🔒</Text>
               <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 1 }}>{num}</Text>
+              {showPreview && (() => {
+                const cfg = getStageConfig(num);
+                return (
+                  <View style={{
+                    position: 'absolute', bottom: 44,
+                    backgroundColor: 'rgba(10,6,30,0.96)', borderRadius: 10,
+                    paddingHorizontal: 8, paddingVertical: 5,
+                    borderWidth: 1, borderColor: 'rgba(139,48,232,0.5)',
+                    minWidth: 90, alignItems: 'center', zIndex: 20,
+                  }}>
+                    <Text style={{ fontSize: 9, color: '#C0A8F0', fontWeight: '700' }}>STAGE {num}</Text>
+                    <Text style={{ fontSize: 9, color: GREY, marginTop: 2 }}>🎨 {cfg.colors}色 × cap{cfg.cap}</Text>
+                    <Text style={{ fontSize: 9, color: GREY }}>空チューブ × {cfg.empty}</Text>
+                  </View>
+                );
+              })()}
             </View>
           ) : (
             <View style={{ alignItems: 'center' }}>
@@ -3551,7 +3637,7 @@ export default function App() {
         });
       });
     } else if (method === 'coins') {
-      const cost = (type === 'hint' ? ITEM_HINT_COST : type === 'extratube' ? ITEM_EXTRATUBE_COST : ITEM_UNDO_COST) * count;
+      const cost = (type === 'hint' ? ITEM_HINT_COST : type === 'extratube' ? ITEM_EXTRATUBE_COST : type === 'shuffle' ? ITEM_SHUFFLE_COST : ITEM_UNDO_COST) * count;
       setCoins(prev => {
         const next = Math.max(0, prev - cost);
         AsyncStorage.setItem(COINS_KEY, String(next)).catch(() => {});
@@ -3748,9 +3834,12 @@ export default function App() {
           earnedAchieves={earnedAchieves}
           clearedCount={clearedStages.size}
           totalStars={Object.values(stageStars).reduce((a, b) => a + b, 0)}
+          threeStarCount={Object.values(stageStars).filter(s => s === 3).length}
           endlessHigh={endlessHigh}
           totalMoves={totalMovesEver}
           totalClears={totalClears}
+          totalCoinsEarned={totalCoinsEarned}
+          challengeStreak={challengeStreak}
           onClose={() => setShowAchievements(false)}
         />
       )}
