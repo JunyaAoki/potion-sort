@@ -254,6 +254,7 @@ const ACHIEVEMENTS = [
   { id: 'no_hint',      emoji: '🧠', title: '頭脳明晰',          desc: 'ヒントなしでステージをクリア' },
   { id: 'no_undo',      emoji: '🎯', title: '一発クリア',        desc: 'やり直しなしでステージをクリア' },
   { id: 'pure_clear',   emoji: '💎', title: '純粋な才能',        desc: 'ヒント・やり直しなしでクリア' },
+  { id: 'no_items',     emoji: '🫙', title: '完全素手',          desc: 'アイテムを一切使わずにクリア' },
   { id: 'speed_clear',  emoji: '⚡', title: 'スピードクリア',    desc: '最適手数ちょうどでクリア' },
   { id: 'endless_1',    emoji: '♾️', title: 'エンドレス突入',      desc: 'エンドレスモードで1ステージクリア' },
   { id: 'endless_10',   emoji: '🌌', title: '宇宙の錬金術師',      desc: 'エンドレスモードで10ステージクリア' },
@@ -1619,9 +1620,11 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
   const [elapsed, setElapsed]           = useState(0);
   const [resumeData, setResumeData]     = useState(null);
   const startTimeRef    = useRef(Date.now());
-  const usedHintRef     = useRef(false);
-  const usedUndoRef     = useRef(false);
-  const restartCountRef = useRef(0);
+  const usedHintRef      = useRef(false);
+  const usedUndoRef      = useRef(false);
+  const usedExtraTubeRef = useRef(false);
+  const usedShuffleRef   = useRef(false);
+  const restartCountRef  = useRef(0);
   const glowAnims       = useRef(Array.from({ length: tubes.length }, () => new Animated.Value(0))).current;
   const [floatingChecks, setFloatingChecks] = useState([]);
 
@@ -1808,6 +1811,8 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
         onStageComplete?.(stage, coins, starsWon, isChallenge, {
           noHint: !usedHintRef.current,
           noUndo: !usedUndoRef.current,
+          noExtraTube: !usedExtraTubeRef.current,
+          noShuffle: !usedShuffleRef.current,
           exactOpt: totalMoves === optMoves,
           moves: totalMoves,
           time: Math.floor((Date.now() - startTimeRef.current) / 1000),
@@ -2027,7 +2032,7 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
         const coinsWon2  = Math.round(COIN_PER_STAR[starsWon2] * stageMult2 * (isChallenge ? getChallengeMultiplier(challengeStreak ?? 0) : 1));
         setCoinsEarned(coinsWon2);
         setWon(true);
-        onStageComplete?.(stage, coinsWon2, starsWon2, isChallenge, { noHint: false, noUndo: !usedUndoRef.current, exactOpt: false, moves: totalMoves, time: Math.floor((Date.now() - startTimeRef.current) / 1000) });
+        onStageComplete?.(stage, coinsWon2, starsWon2, isChallenge, { noHint: false, noUndo: !usedUndoRef.current, noExtraTube: !usedExtraTubeRef.current, noShuffle: !usedShuffleRef.current, exactOpt: false, moves: totalMoves, time: Math.floor((Date.now() - startTimeRef.current) / 1000) });
         hapticNotification(Haptics.NotificationFeedbackType.Success);
         playSound('win');
       }
@@ -2039,6 +2044,7 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
   function handleExtraTube() {
     if (won || isAnimating.current) return;
     if (items.extratube <= 0) { setPurchaseType('extratube'); return; }
+    usedExtraTubeRef.current = true;
     setHistory(h => [...h, tubes.map(x => [...x])]);
     setTubes(prev => [...prev, []]);
     onUseItem('extratube');
@@ -2052,6 +2058,7 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
     shuffleCountRef.current += 1;
     const newSeed = levelSeed + shuffleCountRef.current * 9973;
     usedHintRef.current = true;
+    usedShuffleRef.current = true;
     onUseItem('shuffle');
     setHistory([]);
     setMoves(0);
@@ -2066,6 +2073,8 @@ function GameScreen({ stage, items, coins, hearts, bgmOn, isFirstPlay, isChallen
     setElapsed(0);
     usedHintRef.current = false;
     usedUndoRef.current = false;
+    usedExtraTubeRef.current = false;
+    usedShuffleRef.current = false;
     glowAnims.forEach(a => a.setValue(0));
     setFloatingChecks([]);
     tiltAnims.forEach(a => a.setValue(0));
@@ -2704,9 +2713,10 @@ const HEART_COIN_COST  = 30;
 const REFILL_COIN_COST = 100;
 const SKIP_STAGE_COST  = 50;
 
-function StageSelect({ clearedStages, stageStars, stageBestTimes, perfectStreak, hearts, coins, challengeDone, challengeStreak, weekly, dailyMissions, endlessHigh, onPlay, onPlayChallenge, onPlayEndless, onAddHearts, onSpendCoins, onShowMissions, onShowSettings, onShowAchievements, onSkipStage }) {
+function StageSelect({ clearedStages, stageStars, stageBestTimes, perfectStreak, hearts, coins, items, challengeDone, challengeStreak, weekly, dailyMissions, endlessHigh, onPlay, onPlayChallenge, onPlayEndless, onAddHearts, onSpendCoins, onBuyItem, onShowMissions, onShowSettings, onShowAchievements, onSkipStage }) {
   const nextStage = Math.min(TOTAL_STAGES + 1, clearedStages.size > 0 ? Math.max(...clearedStages) + 1 : 1);
   const [shopOpen, setShopOpen] = useState(false);
+  const [shopTab, setShopTab]   = useState('hearts');
   const [noHearts, setNoHearts] = useState(false);
   const [timeLeft, setTimeLeft] = useState('');
   const scrollRef = useRef(null);
@@ -3019,56 +3029,113 @@ function StageSelect({ clearedStages, stageStars, stageBestTimes, perfectStreak,
         {(shopOpen || noHearts) && (
           <Modal transparent animationType="fade">
             <View style={s.overlay}>
-              <View style={[s.winCard, { gap: 10 }]}>
-                <Text style={{ fontSize: 44 }}>{noHearts ? '💔' : '🏪'}</Text>
-                <Text style={[s.winTitle, { fontSize: 22 }]}>{noHearts ? 'ハートがありません' : 'ハートショップ'}</Text>
-                {/* Heart status + regen timer */}
-                <View style={{ alignItems: 'center', gap: 4 }}>
-                  <View style={{ flexDirection: 'row', gap: 4 }}>
-                    {Array.from({ length: MAX_HEARTS }, (_, i) => (
-                      <Text key={i} style={{ fontSize: 20 }}>{i < hearts.count ? '❤️' : '🖤'}</Text>
+              <View style={[s.winCard, { gap: 8, maxHeight: SH * 0.88 }]}>
+                <Text style={{ fontSize: 36 }}>🏪</Text>
+                <Text style={[s.winTitle, { fontSize: 20 }]}>{noHearts ? '💔 ハートがありません' : 'ショップ'}</Text>
+
+                {/* Coin balance */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                  backgroundColor: 'rgba(245,197,24,0.12)', paddingHorizontal: 14, paddingVertical: 6,
+                  borderRadius: 14, borderWidth: 1, borderColor: 'rgba(245,197,24,0.35)' }}>
+                  <Text style={{ fontSize: 16 }}>🪙</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#F5C518' }}>{fmtCoins(coins)} コイン所持</Text>
+                </View>
+
+                {/* Tabs */}
+                {!noHearts && (
+                  <View style={{ flexDirection: 'row', gap: 6, width: '100%' }}>
+                    {[{ key: 'hearts', label: '❤️ ハート' }, { key: 'items', label: '🎒 アイテム' }, { key: 'coins', label: '💎 コイン' }].map(({ key, label }) => (
+                      <TouchableOpacity key={key} onPress={() => setShopTab(key)}
+                        style={{ flex: 1, paddingVertical: 7, borderRadius: 10, alignItems: 'center',
+                          backgroundColor: shopTab === key ? '#8B30E8' : 'rgba(255,255,255,0.08)',
+                          borderWidth: 1, borderColor: shopTab === key ? '#8B30E8' : 'rgba(255,255,255,0.15)' }}>
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: shopTab === key ? '#fff' : GREY }}>{label}</Text>
+                      </TouchableOpacity>
                     ))}
                   </View>
-                  {timeLeft && hearts.count < MAX_HEARTS && (
-                    <Text style={{ fontSize: 13, color: '#F5C518', fontWeight: '800' }}>
-                      ⏱ {timeLeft} で +❤️
-                    </Text>
-                  )}
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
-                  backgroundColor: 'rgba(245,197,24,0.12)', paddingHorizontal: 16, paddingVertical: 8,
-                  borderRadius: 16, borderWidth: 1, borderColor: 'rgba(245,197,24,0.35)' }}>
-                  <Text style={{ fontSize: 18 }}>🪙</Text>
-                  <Text style={{ fontSize: 18, fontWeight: '900', color: '#F5C518' }}>{fmtCoins(coins)} コイン</Text>
-                </View>
-                <TouchableOpacity
-                  style={[s.nextBtn, { backgroundColor: coins >= HEART_COIN_COST ? '#8B30E8' : '#AAA' }]}
-                  onPress={() => { if (coins < HEART_COIN_COST) return; onSpendCoins(HEART_COIN_COST); onAddHearts(1); setShopOpen(false); setNoHearts(false); }}
-                  disabled={coins < HEART_COIN_COST}>
-                  <Text style={s.nextBtnTxt}>🪙 {HEART_COIN_COST}コイン → ❤️ × 1</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[s.nextBtn, { backgroundColor: coins >= REFILL_COIN_COST ? '#2F7BF0' : '#AAA' }]}
-                  onPress={() => { if (coins < REFILL_COIN_COST || hearts.count >= MAX_HEARTS) return; onSpendCoins(REFILL_COIN_COST); onAddHearts(MAX_HEARTS - hearts.count); setShopOpen(false); setNoHearts(false); }}
-                  disabled={coins < REFILL_COIN_COST || hearts.count >= MAX_HEARTS}>
-                  <Text style={s.nextBtnTxt}>🪙 {REFILL_COIN_COST}コイン → ❤️ 全回復</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#E84343' }]}
-                  onPress={() => { setNoHearts(false); setShopOpen(false); showRewarded(() => onAddHearts(3)); }}>
-                  <Text style={s.nextBtnTxt}>📺 広告を見て❤️ × 3もらう</Text>
-                </TouchableOpacity>
-                <View style={{ width: '100%', height: 1, backgroundColor: 'rgba(255,255,255,0.12)', marginVertical: 4 }} />
-                <Text style={{ fontSize: 11, color: GREY, fontWeight: '700', letterSpacing: 1 }}>💎 コインを購入</Text>
-                {COIN_PACKS.map(pack => (
-                  <TouchableOpacity key={pack.id}
-                    style={[s.nextBtn, { backgroundColor: '#4A5AAD', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}
-                    onPress={() => Alert.alert('💎 コイン購入', `${pack.label} で 🪙×${pack.coins} を購入しますか？\n\n※ Google Play Console で商品を設定後にご利用いただけます。`, [{ text: 'OK' }])}>
-                    <Text style={s.nextBtnTxt}>{pack.emoji} 🪙×{pack.coins}</Text>
-                    {pack.badge && <Text style={{ fontSize: 10, color: '#F5C518', fontWeight: '800', marginRight: 4 }}>{pack.badge}</Text>}
-                    <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', fontWeight: '700' }}>{pack.label}</Text>
-                  </TouchableOpacity>
-                ))}
-                <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY }]}
+                )}
+
+                <ScrollView style={{ width: '100%' }} showsVerticalScrollIndicator={false}>
+                  {(noHearts || shopTab === 'hearts') && (<>
+                    <View style={{ alignItems: 'center', gap: 4, marginBottom: 8 }}>
+                      <View style={{ flexDirection: 'row', gap: 4 }}>
+                        {Array.from({ length: MAX_HEARTS }, (_, i) => (
+                          <Text key={i} style={{ fontSize: 20 }}>{i < hearts.count ? '❤️' : '🖤'}</Text>
+                        ))}
+                      </View>
+                      {timeLeft && hearts.count < MAX_HEARTS && (
+                        <Text style={{ fontSize: 13, color: '#F5C518', fontWeight: '800' }}>⏱ {timeLeft} で +❤️</Text>
+                      )}
+                    </View>
+                    <TouchableOpacity style={[s.nextBtn, { backgroundColor: coins >= HEART_COIN_COST ? '#8B30E8' : '#AAA', marginBottom: 8 }]}
+                      onPress={() => { if (coins < HEART_COIN_COST) return; onSpendCoins(HEART_COIN_COST); onAddHearts(1); setShopOpen(false); setNoHearts(false); }}
+                      disabled={coins < HEART_COIN_COST}>
+                      <Text style={s.nextBtnTxt}>🪙 {HEART_COIN_COST}コイン → ❤️ × 1</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[s.nextBtn, { backgroundColor: coins >= REFILL_COIN_COST ? '#2F7BF0' : '#AAA', marginBottom: 8 }]}
+                      onPress={() => { if (coins < REFILL_COIN_COST || hearts.count >= MAX_HEARTS) return; onSpendCoins(REFILL_COIN_COST); onAddHearts(MAX_HEARTS - hearts.count); setShopOpen(false); setNoHearts(false); }}
+                      disabled={coins < REFILL_COIN_COST || hearts.count >= MAX_HEARTS}>
+                      <Text style={s.nextBtnTxt}>🪙 {REFILL_COIN_COST}コイン → ❤️ 全回復</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[s.nextBtn, { backgroundColor: '#E84343', marginBottom: 8 }]}
+                      onPress={() => { setNoHearts(false); setShopOpen(false); showRewarded(() => onAddHearts(3)); }}>
+                      <Text style={s.nextBtnTxt}>📺 広告を見て❤️ × 3もらう</Text>
+                    </TouchableOpacity>
+                  </>)}
+
+                  {(!noHearts && shopTab === 'items') && (() => {
+                    const SHOP_ITEMS = [
+                      { type: 'undo',      emoji: '↩',  label: 'やり直し',   cost: ITEM_UNDO_COST },
+                      { type: 'hint',      emoji: '💡',  label: 'ヒント',     cost: ITEM_HINT_COST },
+                      { type: 'extratube', emoji: '🧪',  label: '空チューブ', cost: ITEM_EXTRATUBE_COST },
+                      { type: 'shuffle',   emoji: '🔀',  label: 'シャッフル', cost: ITEM_SHUFFLE_COST },
+                    ];
+                    return SHOP_ITEMS.map(si => {
+                      const count = items?.[si.type] ?? 0;
+                      const canAfford = coins >= si.cost;
+                      return (
+                        <View key={si.type} style={{
+                          flexDirection: 'row', alignItems: 'center', gap: 10,
+                          backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 14,
+                          padding: 12, marginBottom: 8,
+                          borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+                        }}>
+                          <Text style={{ fontSize: 28 }}>{si.emoji}</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 13, fontWeight: '800', color: '#E8D8A0' }}>{si.label}</Text>
+                            <Text style={{ fontSize: 11, color: GREY }}>所持: {count}個</Text>
+                          </View>
+                          <View style={{ gap: 5 }}>
+                            <TouchableOpacity
+                              style={{ backgroundColor: canAfford ? '#F5C518' : '#555', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 }}
+                              onPress={() => canAfford && onBuyItem(si.type, 1, 'coins')}
+                              disabled={!canAfford}>
+                              <Text style={{ fontSize: 11, fontWeight: '800', color: canAfford ? '#333' : '#999' }}>🪙{si.cost}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={{ backgroundColor: '#27C757', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 }}
+                              onPress={() => { setShopOpen(false); onBuyItem(si.type, 3, 'ad'); }}>
+                              <Text style={{ fontSize: 11, fontWeight: '800', color: '#fff' }}>📺×3</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      );
+                    });
+                  })()}
+
+                  {(!noHearts && shopTab === 'coins') && (<>
+                    {COIN_PACKS.map(pack => (
+                      <TouchableOpacity key={pack.id} style={[s.nextBtn, { backgroundColor: '#4A5AAD', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }]}
+                        onPress={() => Alert.alert('💎 コイン購入', `${pack.label} で 🪙×${pack.coins} を購入しますか？\n\n※ Google Play Console で商品を設定後にご利用いただけます。`, [{ text: 'OK' }])}>
+                        <Text style={s.nextBtnTxt}>{pack.emoji} 🪙×{pack.coins}</Text>
+                        {pack.badge && <Text style={{ fontSize: 10, color: '#F5C518', fontWeight: '800', marginRight: 4 }}>{pack.badge}</Text>}
+                        <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', fontWeight: '700' }}>{pack.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </>)}
+                </ScrollView>
+
+                <TouchableOpacity style={[s.nextBtn, { backgroundColor: GREY, marginTop: 4 }]}
                   onPress={() => { setNoHearts(false); setShopOpen(false); }}>
                   <Text style={s.nextBtnTxt}>閉じる</Text>
                 </TouchableOpacity>
@@ -3285,6 +3352,7 @@ export default function App() {
     if (flags.noHint)                 unlockAchievement('no_hint');
     if (flags.noUndo)                 unlockAchievement('no_undo');
     if (flags.noHint && flags.noUndo) unlockAchievement('pure_clear');
+    if (flags.noHint && flags.noUndo && flags.noExtraTube && flags.noShuffle) unlockAchievement('no_items');
     if (flags.exactOpt)               unlockAchievement('speed_clear');
     if (flags.time > 0 && flags.time <= 30) unlockAchievement('fast_30');
     if (flags.time > 0 && flags.time <= 10) unlockAchievement('fast_10');
@@ -3773,6 +3841,7 @@ export default function App() {
         stageBestTimes={stageBestTimes}
         hearts={hearts}
         coins={coins}
+        items={items}
         challengeDone={challengeDone}
         weekly={weekly}
         dailyMissions={dailyMissions}
@@ -3781,6 +3850,7 @@ export default function App() {
         onPlayEndless={handlePlayEndless}
         onAddHearts={addHearts}
         onSpendCoins={handleSpendCoins}
+        onBuyItem={handleBuyItem}
         onShowMissions={() => setShowMissions(true)}
         onShowSettings={() => setShowSettings(true)}
         perfectStreak={perfectStreak}
