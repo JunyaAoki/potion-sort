@@ -280,7 +280,11 @@ const ACHIEVEMENTS = [
   { id: 'perfect_50',   emoji: '👑', title: '無欠の覇者',            desc: '50ステージ以上で3つ星を獲得' },
   { id: 'perfect_100',  emoji: '🌟', title: '百星の完璧者',          desc: '100ステージ以上で3つ星を獲得' },
   { id: 'challenge_7',  emoji: '🔥', title: '週間の炎',              desc: 'デイリーチャレンジを7日連続クリア' },
-  { id: 'challenge_30', emoji: '🌋', title: '不滅の連鎖',            desc: 'デイリーチャレンジを30日連続クリア' },
+  { id: 'challenge_30',     emoji: '🌋', title: '不滅の連鎖',          desc: 'デイリーチャレンジを30日連続クリア' },
+  { id: 'band_perfect_1',  emoji: '🌟', title: 'バンド完全攻略',       desc: '1つのバンドを全て3つ星でクリア' },
+  { id: 'band_perfect_5',  emoji: '💫', title: '五星の錬金師',          desc: '5つのバンドを全て3つ星でクリア' },
+  { id: 'band_perfect_10', emoji: '✨', title: '十星の達人',            desc: '10のバンドを全て3つ星でクリア' },
+  { id: 'band_perfect_all',emoji: '👑', title: '全バンド完全制覇',      desc: '全30バンドを全て3つ星でクリア' },
 ];
 
 function getDailyChallengeConfig() {
@@ -960,7 +964,7 @@ function SettingsModal({ bgmOn, sfxOn, hapticsOn, colorblind, onToggleBGM, onTog
 }
 
 // ── Achievement List Modal ─────────────────────────────────
-function AchievementListModal({ earnedAchieves, clearedCount, totalStars, threeStarCount, endlessHigh, totalMoves, totalClears, totalCoinsEarned, challengeStreak, onClose }) {
+function AchievementListModal({ earnedAchieves, clearedCount, totalStars, threeStarCount, endlessHigh, totalMoves, totalClears, totalCoinsEarned, challengeStreak, perfectBandCount, onClose }) {
   const scale = useRef(new Animated.Value(0.85)).current;
   useEffect(() => {
     Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
@@ -996,8 +1000,12 @@ function AchievementListModal({ earnedAchieves, clearedCount, totalStars, threeS
     perfect_10:   { cur: threeStarCount ?? 0, max: 10 },
     perfect_50:   { cur: threeStarCount ?? 0, max: 50 },
     perfect_100:  { cur: threeStarCount ?? 0, max: 100 },
-    challenge_7:  { cur: challengeStreak ?? 0, max: 7 },
-    challenge_30: { cur: challengeStreak ?? 0, max: 30 },
+    challenge_7:      { cur: challengeStreak ?? 0,   max: 7 },
+    challenge_30:     { cur: challengeStreak ?? 0,   max: 30 },
+    band_perfect_1:   { cur: perfectBandCount ?? 0,  max: 1 },
+    band_perfect_5:   { cur: perfectBandCount ?? 0,  max: 5 },
+    band_perfect_10:  { cur: perfectBandCount ?? 0,  max: 10 },
+    band_perfect_all: { cur: perfectBandCount ?? 0,  max: 30 },
   };
   return (
     <Modal transparent animationType="fade">
@@ -2662,6 +2670,7 @@ function BandDivider({ band, stageStars, clearedStages }) {
   const bandStars = Array.from({ length: stageCount }, (_, i) => stageStars[band.start + i] ?? 0).reduce((a, b) => a + b, 0);
   const maxStars = stageCount * 3;
   const isComplete = cleared === stageCount;
+  const isPerfect  = bandStars === maxStars;
   return (
     <View style={{ height: MAP_BAND_H, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 8 }}>
       <View style={{ flex: 1, height: 1, backgroundColor: `${band.color}44` }} />
@@ -2669,13 +2678,17 @@ function BandDivider({ band, stageStars, clearedStages }) {
         flexDirection: 'row', alignItems: 'center', gap: 5,
         paddingHorizontal: 10, paddingVertical: 5,
         borderRadius: 14,
-        backgroundColor: isComplete ? `${band.color}30` : `${band.color}18`,
-        borderWidth: 1,
-        borderColor: isComplete ? `${band.color}88` : `${band.color}44`,
+        backgroundColor: isPerfect ? `${band.color}40` : isComplete ? `${band.color}30` : `${band.color}18`,
+        borderWidth: isPerfect ? 1.5 : 1,
+        borderColor: isPerfect ? `${band.color}CC` : isComplete ? `${band.color}88` : `${band.color}44`,
       }}>
-        {isComplete && <Text style={{ fontSize: 10 }}>✅</Text>}
-        <Text style={{ fontSize: 10, fontWeight: '900', color: band.color, letterSpacing: 1.5 }}>{band.name}</Text>
-        <Text style={{ fontSize: 9, color: `${band.color}CC` }}>
+        {isPerfect ? (
+          <Text style={{ fontSize: 11 }}>🌟</Text>
+        ) : isComplete ? (
+          <Text style={{ fontSize: 10 }}>✅</Text>
+        ) : null}
+        <Text style={{ fontSize: 10, fontWeight: '900', color: isPerfect ? '#F5C518' : band.color, letterSpacing: 1.5 }}>{band.name}</Text>
+        <Text style={{ fontSize: 9, color: isPerfect ? 'rgba(245,197,24,0.85)' : `${band.color}CC` }}>
           {cleared}/{stageCount}  ★{bandStars}/{maxStars}
         </Text>
       </View>
@@ -3576,6 +3589,42 @@ export default function App() {
         }
       }
     }
+
+    // バンドパーフェクトチェック（このステージで初めて3つ星を取った場合のみ）
+    if (!isChallenge && stageNum > 0 && stars === 3 && (stageStars[stageNum] ?? 0) < 3) {
+      const bandIdx = BANDS.findIndex(b => stageNum >= b.start && stageNum <= b.end);
+      if (bandIdx >= 0) {
+        const band = BANDS[bandIdx];
+        const stageCount = band.end - band.start + 1;
+        const bandNowPerfect = Array.from({ length: stageCount }, (_, i) => {
+          const s = band.start + i;
+          return s === stageNum ? 3 : (stageStars[s] ?? 0);
+        }).every(s => s === 3);
+        if (bandNowPerfect) {
+          const wasAlreadyPerfect = Array.from({ length: stageCount }, (_, i) => (stageStars[band.start + i] ?? 0) === 3).every(Boolean);
+          if (!wasAlreadyPerfect) {
+            const perfectBandCount = BANDS.filter(b => {
+              if (b.name === band.name) return true;
+              return Array.from({ length: b.end - b.start + 1 }, (_, i) => (stageStars[b.start + i] ?? 0) === 3).every(Boolean);
+            }).length;
+            const perfBonus = 100 + bandIdx * 15;
+            setTimeout(() => {
+              setCoins(prev => {
+                const next = prev + perfBonus;
+                AsyncStorage.setItem(COINS_KEY, String(next)).catch(() => {});
+                return next;
+              });
+              showToast({ id: `band_perfect_${band.name}`, emoji: '🌟', header: `${band.name} パーフェクト！`, title: '全10ステージ3つ星！', desc: `🪙+${perfBonus} ボーナス！` });
+            }, 1500);
+            if (perfectBandCount >= 1)  unlockAchievement('band_perfect_1');
+            if (perfectBandCount >= 5)  unlockAchievement('band_perfect_5');
+            if (perfectBandCount >= 10) unlockAchievement('band_perfect_10');
+            if (perfectBandCount >= 30) unlockAchievement('band_perfect_all');
+          }
+        }
+      }
+    }
+
     const threeStarCount = Object.values(stageStars).filter(s => s === 3).length + (!isChallenge && stageNum > 0 && stars === 3 && (stageStars[stageNum] ?? 0) < 3 ? 1 : 0);
     if (stageNum > 0) {
       setClearedStages(prev => {
@@ -3956,6 +4005,7 @@ export default function App() {
           totalClears={totalClears}
           totalCoinsEarned={totalCoinsEarned}
           challengeStreak={challengeStreak}
+          perfectBandCount={BANDS.filter(b => Array.from({ length: b.end - b.start + 1 }, (_, i) => (stageStars[b.start + i] ?? 0) === 3).every(Boolean)).length}
           onClose={() => setShowAchievements(false)}
         />
       )}
